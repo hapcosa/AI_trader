@@ -91,10 +91,16 @@ def _emit(emit: Emit | None, message: str) -> None:
         emit(message)
 
 
-def _visible_dfs(dfs: dict, candles: int | None) -> dict:
-    if candles is None:
+def _visible_dfs(dfs: dict, candles: int | None, candles_per_tf: dict[str, int] | None = None) -> dict:
+    if candles is None and candles_per_tf is None:
         return dfs
-    return {tf: df.iloc[-candles:].copy() for tf, df in dfs.items()}
+    result = {}
+    for tf, df in dfs.items():
+        c = candles_per_tf.get(tf) if candles_per_tf else None
+        if c is None:
+            c = candles
+        result[tf] = df.iloc[-c:].copy() if c is not None else df
+    return result
 
 
 def _build_indicator_summaries(dfs: dict, ind_list: list[str], emit: Emit | None) -> dict[str, dict | None]:
@@ -193,6 +199,7 @@ def generate_prompt(
     model: str = "claude-opus-4-7",
     mode: str = "signal",
     ai_summary: bool = False,
+    candles_per_tf: dict[str, int] | None = None,
     save: bool = True,
     emit: Emit | None = None,
 ) -> PromptGenerationResult:
@@ -208,10 +215,18 @@ def generate_prompt(
 
     tf_list = parse_timeframes(timeframes)
     ind_list = parse_indicators(indicators)
-    days, candles = resolve_history(days, candles)
+    if candles_per_tf:
+        days, candles = None, None
+    else:
+        days, candles = resolve_history(days, candles)
     dt_utc = datetime.now(tz=timezone.utc)
 
-    history_label = f"Candles    : {candles}" if candles is not None else f"Days       : {days}"
+    if candles_per_tf:
+        history_label = "Candles    : " + ", ".join(f"{tf}={c}" for tf, c in candles_per_tf.items())
+    elif candles is not None:
+        history_label = f"Candles    : {candles}"
+    else:
+        history_label = f"Days       : {days}"
 
     _emit(emit, f"\n{'=' * 70}")
     _emit(emit, "  AI TRADER v3")
@@ -235,11 +250,12 @@ def generate_prompt(
         candles=candles,
         source=actual_source,
         exchange=exchange,
+        candles_per_tf=candles_per_tf,
     )
     if not dfs_full:
         raise RuntimeError("empty dfs")
 
-    dfs_prompt = _visible_dfs(dfs_full, candles)
+    dfs_prompt = _visible_dfs(dfs_full, candles, candles_per_tf=candles_per_tf)
     candle_counts = {tf: len(df) for tf, df in dfs_prompt.items()}
 
     _emit(emit, "[2/4] Calculando indicadores...")

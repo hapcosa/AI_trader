@@ -257,6 +257,54 @@ INDEX_HTML = """
       padding: 0 14px;
       font-size: 13px;
     }
+    .tf-rows { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tf-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 0;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .tf-row .tf-chk {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      min-height: 38px;
+      cursor: pointer;
+    }
+    .tf-row .tf-chk input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .tf-row .tf-chk span {
+      padding: 9px 10px;
+      font-size: 14px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .tf-row .tf-chk input:checked + span {
+      background: #e7f5f6;
+      color: var(--accent-strong);
+    }
+    .tf-row .tf-sep {
+      width: 1px;
+      background: var(--line);
+      align-self: stretch;
+    }
+    .tf-row input[type="number"] {
+      width: 64px;
+      min-height: 38px;
+      border: none;
+      border-radius: 0;
+      padding: 0 8px;
+      font-size: 13px;
+      color: var(--muted);
+      background: transparent;
+    }
+    .tf-row input[type="number"]:focus { outline: none; color: var(--ink); }
     @media (max-width: 760px) {
       main { width: min(100vw - 20px, 1120px); padding-top: 18px; }
       header { align-items: start; flex-direction: column; }
@@ -279,7 +327,36 @@ INDEX_HTML = """
       <div class="grid">
         <div class="field">
           <label for="symbol">Simbolo</label>
-          <input id="symbol" name="symbol" type="text" value="BTC/USDT" autocomplete="off" required>
+          <select id="symbol" name="symbol">
+            <option value="BTC/USDT" selected>BTC/USDT</option>
+            <option value="ETH/USDT">ETH/USDT</option>
+            <option value="SOL/USDT">SOL/USDT</option>
+            <option value="BNB/USDT">BNB/USDT</option>
+            <option value="XRP/USDT">XRP/USDT</option>
+            <option value="DOGE/USDT">DOGE/USDT</option>
+            <option value="ADA/USDT">ADA/USDT</option>
+            <option value="AVAX/USDT">AVAX/USDT</option>
+            <option value="LINK/USDT">LINK/USDT</option>
+            <option value="DOT/USDT">DOT/USDT</option>
+            <option value="MATIC/USDT">MATIC/USDT</option>
+            <option value="UNI/USDT">UNI/USDT</option>
+            <option value="ATOM/USDT">ATOM/USDT</option>
+            <option value="LTC/USDT">LTC/USDT</option>
+            <option value="BCH/USDT">BCH/USDT</option>
+            <option value="NEAR/USDT">NEAR/USDT</option>
+            <option value="OP/USDT">OP/USDT</option>
+            <option value="ARB/USDT">ARB/USDT</option>
+            <option value="INJ/USDT">INJ/USDT</option>
+            <option value="TRX/USDT">TRX/USDT</option>
+            <option value="APT/USDT">APT/USDT</option>
+            <option value="SUI/USDT">SUI/USDT</option>
+            <option value="TON/USDT">TON/USDT</option>
+            <option value="WIF/USDT">WIF/USDT</option>
+            <option value="PEPE/USDT">PEPE/USDT</option>
+            <option value="SHIB/USDT">SHIB/USDT</option>
+            <option value="ETC/USDT">ETC/USDT</option>
+            <option value="FIL/USDT">FIL/USDT</option>
+          </select>
         </div>
 
         <div class="field">
@@ -299,27 +376,23 @@ INDEX_HTML = """
           </select>
         </div>
 
-        <fieldset class="field mid">
-          <legend>Historial</legend>
-          <div class="segmented">
-            <label class="choice"><input type="radio" name="history_mode" value="candles" checked><span>Velas</span></label>
-            <label class="choice"><input type="radio" name="history_mode" value="days"><span>Dias</span></label>
-          </div>
-        </fieldset>
-
-        <div class="field mid">
-          <label for="amount">Cantidad</label>
-          <input id="amount" name="amount" type="number" value="300" min="1" step="1" required>
-        </div>
-
         <div class="field">
           <label for="exchange">Exchange</label>
-          <input id="exchange" name="exchange" type="text" value="__DEFAULT_EXCHANGE__" autocomplete="off">
+          <select id="exchange" name="exchange">
+            <option value="binance" selected>Binance</option>
+            <option value="bybit">Bybit</option>
+            <option value="bitget">Bitget</option>
+            <option value="okx">OKX</option>
+            <option value="kraken">Kraken</option>
+            <option value="coinbase">Coinbase</option>
+            <option value="kucoin">KuCoin</option>
+            <option value="gateio">Gate.io</option>
+          </select>
         </div>
 
         <fieldset class="field wide">
-          <legend>Timeframes</legend>
-          <div class="checks">__TIMEFRAME_OPTIONS__</div>
+          <legend>Timeframes — velas por TF (default 200)</legend>
+          <div class="tf-rows">__TIMEFRAME_ROWS__</div>
         </fieldset>
 
         <fieldset class="field wide">
@@ -373,14 +446,19 @@ INDEX_HTML = """
     }
 
     function buildPayload() {
+      const checkedTfs = checkedValues("timeframes");
+      const candles_per_tf = {};
+      checkedTfs.forEach((tf) => {
+        const inp = form.querySelector(`input[name="candles_${tf}"]`);
+        candles_per_tf[tf] = inp ? Math.max(1, parseInt(inp.value) || 200) : 200;
+      });
       return {
-        symbol: form.symbol.value.trim(),
+        symbol: form.symbol.value,
         mode: form.mode.value,
         source: form.source.value,
-        exchange: form.exchange.value.trim(),
-        history_mode: form.history_mode.value,
-        amount: Number(form.amount.value),
-        timeframes: checkedValues("timeframes"),
+        exchange: form.exchange.value,
+        timeframes: checkedTfs,
+        candles_per_tf,
         indicators: checkedValues("indicators"),
         context: form.context.checked,
         ai_summary: form.ai_summary.checked
@@ -497,6 +575,24 @@ def _checkboxes(name: str, values: list[str], checked: set[str]) -> str:
     return "".join(items)
 
 
+def _tf_rows(timeframes: list[str], checked: set[str], default_candles: int = 200) -> str:
+    items = []
+    for tf in timeframes:
+        safe = escape(tf)
+        attr = " checked" if tf in checked else ""
+        items.append(
+            f'<div class="tf-row">'
+            f'<label class="tf-chk">'
+            f'<input type="checkbox" name="timeframes" value="{safe}"{attr}>'
+            f'<span>{safe}</span>'
+            f'</label>'
+            f'<div class="tf-sep"></div>'
+            f'<input type="number" name="candles_{safe}" value="{default_candles}" min="10" step="1">'
+            f'</div>'
+        )
+    return "".join(items)
+
+
 def _optional_int(value: Any, field_name: str) -> int | None:
     if value is None or value == "":
         return None
@@ -537,14 +633,13 @@ def _history_from_payload(payload: dict[str, Any]) -> tuple[int | None, int | No
 def index() -> HTMLResponse:
     html = (
         INDEX_HTML.replace(
-            "__TIMEFRAME_OPTIONS__",
-            _checkboxes("timeframes", TIMEFRAME_ORDER, DEFAULT_WEB_TIMEFRAMES),
+            "__TIMEFRAME_ROWS__",
+            _tf_rows(TIMEFRAME_ORDER, DEFAULT_WEB_TIMEFRAMES),
         )
         .replace(
             "__INDICATOR_OPTIONS__",
             _checkboxes("indicators", list(ALL_INDICATORS), set(ALL_INDICATORS)),
         )
-        .replace("__DEFAULT_EXCHANGE__", escape(DEFAULT_EXCHANGE))
     )
     return HTMLResponse(html)
 
@@ -568,13 +663,14 @@ async def generate(request: Request) -> FileResponse:
         if not isinstance(payload, dict):
             raise ValueError("JSON object body is required")
 
-        days, candles = _history_from_payload(payload)
         context_enabled = _bool_value(payload.get("context"), default=True)
         if "no_context" in payload:
             no_context = _bool_value(payload.get("no_context"))
         else:
             no_context = not context_enabled
         ai_summary = _bool_value(payload.get("ai_summary"), default=False)
+        candles_per_tf = payload.get("candles_per_tf") or None
+        days, candles = (None, None) if candles_per_tf else _history_from_payload(payload)
 
         result = generate_prompt_file(
             symbol=str(payload.get("symbol", "")).strip(),
@@ -582,6 +678,7 @@ async def generate(request: Request) -> FileResponse:
             timeframes=payload.get("timeframes"),
             days=days,
             candles=candles,
+            candles_per_tf=candles_per_tf,
             source=str(payload.get("source", "auto")).strip() or "auto",
             exchange=str(payload.get("exchange", DEFAULT_EXCHANGE)).strip() or DEFAULT_EXCHANGE,
             no_context=no_context,
@@ -614,10 +711,11 @@ async def prompt_text(request: Request) -> JSONResponse:
         if not isinstance(payload, dict):
             raise ValueError("JSON object body is required")
 
-        days, candles = _history_from_payload(payload)
         context_enabled = _bool_value(payload.get("context"), default=True)
         no_context = not context_enabled if "no_context" not in payload else _bool_value(payload.get("no_context"))
         ai_summary = _bool_value(payload.get("ai_summary"), default=False)
+        candles_per_tf = payload.get("candles_per_tf") or None
+        days, candles = (None, None) if candles_per_tf else _history_from_payload(payload)
 
         result = generate_prompt(
             symbol=str(payload.get("symbol", "")).strip(),
@@ -625,6 +723,7 @@ async def prompt_text(request: Request) -> JSONResponse:
             timeframes=payload.get("timeframes"),
             days=days,
             candles=candles,
+            candles_per_tf=candles_per_tf,
             source=str(payload.get("source", "auto")).strip() or "auto",
             exchange=str(payload.get("exchange", DEFAULT_EXCHANGE)).strip() or DEFAULT_EXCHANGE,
             no_context=no_context,

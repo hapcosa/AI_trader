@@ -255,6 +255,7 @@ def fetch_multi_timeframe(
     source: str = "auto",
     exchange: str = "binance",
     candles: int | None = None,
+    candles_per_tf: dict[str, int] | None = None,
 ) -> dict[str, pd.DataFrame]:
     """
     Fetch OHLCV for multiple timeframes.
@@ -264,12 +265,13 @@ def fetch_multi_timeframe(
     """
     result: dict[str, pd.DataFrame] = {}
     for tf in timeframes:
+        tf_candles = candles_per_tf.get(tf, candles) if candles_per_tf else candles
         try:
             result[tf] = fetch_ohlcv(
-                symbol, tf, days=days, source=source, exchange=exchange, candles=candles
+                symbol, tf, days=days, source=source, exchange=exchange, candles=tf_candles
             )
-            if candles is not None:
-                visible = min(candles, len(result[tf]))
+            if tf_candles is not None:
+                visible = min(tf_candles, len(result[tf]))
                 warmup = max(0, len(result[tf]) - visible)
                 print(f"  [{tf}] {visible} velas descargadas (+{warmup} warmup)")
             else:

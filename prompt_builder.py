@@ -593,6 +593,60 @@ def _build_ohlcv_history(
     return "\n".join(lines)
 
 
+def _build_session_history(dfs: dict, n_sessions: int = 5) -> str:
+    preferred = ["1h", "30m", "15m", "2h", "4h"]
+    df = None
+    used_tf = None
+    for tf in preferred:
+        candidate = dfs.get(tf)
+        if candidate is not None and not candidate.empty:
+            df = candidate.copy()
+            used_tf = tf
+            break
+
+    lines = [_section(f"SESSION HISTORY — ÚLTIMAS {n_sessions} SESIONES [{used_tf or '?'}]")]
+
+    if df is None:
+        lines.append("  (sin datos horarios disponibles)")
+        return "\n".join(lines)
+
+    # Sessions defined in UTC hours [start, end)
+    SESSIONS = [
+        ("Asia",   0,  9),
+        ("London", 8,  14),
+        ("NY",    13,  22),
+    ]
+
+    df["_date"] = df.index.normalize()
+    dates = sorted(df["_date"].unique())[-n_sessions:]
+
+    lines.append(_row("Fecha", "Sesion", "Open", "High", "Low", "Close", widths=[12, 8, 14, 14, 14, 14]))
+    lines.append("-" * 80)
+
+    for d in dates:
+        day_df = df[df["_date"] == d]
+        date_str = pd.Timestamp(d).strftime("%Y-%m-%d")
+        first_in_day = True
+        for sess_name, h_start, h_end in SESSIONS:
+            sess_df = day_df[(day_df.index.hour >= h_start) & (day_df.index.hour < h_end)]
+            if sess_df.empty:
+                continue
+            lines.append(_row(
+                date_str if first_in_day else "",
+                sess_name,
+                _fmt_price(sess_df["open"].iloc[0]),
+                _fmt_price(sess_df["high"].max()),
+                _fmt_price(sess_df["low"].min()),
+                _fmt_price(sess_df["close"].iloc[-1]),
+                widths=[12, 8, 14, 14, 14, 14],
+            ))
+            first_in_day = False
+        lines.append("")
+
+    df.drop(columns=["_date"], inplace=True)
+    return "\n".join(lines)
+
+
 def _build_pretrain_context(pretrain_summary):
     if not pretrain_summary:
         return ""
@@ -725,6 +779,7 @@ def build_prompt(
         blocks.append(_build_pretrain_context(pretrain_summary))
 
     if mode == "mindset":
+        blocks.append(_build_session_history(dfs, n_sessions=5))
         blocks.append(_build_request_mindset(symbol, timeframes, dt_utc, ai_summary=ai_summary))
     else:
         blocks.append(_build_request(symbol, timeframes, dt_utc, ai_summary=ai_summary))
