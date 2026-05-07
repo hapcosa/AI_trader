@@ -192,6 +192,7 @@ def generate_prompt(
     api_key: str | None = None,
     model: str = "claude-opus-4-7",
     mode: str = "signal",
+    ai_summary: bool = False,
     save: bool = True,
     emit: Emit | None = None,
 ) -> PromptGenerationResult:
@@ -213,7 +214,7 @@ def generate_prompt(
     history_label = f"Candles    : {candles}" if candles is not None else f"Days       : {days}"
 
     _emit(emit, f"\n{'=' * 70}")
-    _emit(emit, "  PINEFORGE AI v3")
+    _emit(emit, "  AI TRADER v3")
     _emit(emit, f"  Symbol     : {symbol}")
     _emit(emit, f"  Mode       : {mode.upper()}")
     _emit(emit, f"  Indicators : {', '.join(ind_list)}")
@@ -281,6 +282,19 @@ def generate_prompt(
     except Exception as e:
         _emit(emit, f"      USDT.D FAIL: {e}")
 
+    market_cap_data = None
+    try:
+        from pineforge_ai.context.market_cap import build_market_cap_summary
+
+        market_cap_data = build_market_cap_summary()
+        if market_cap_data.get("available"):
+            btc = market_cap_data.get("btc_dominance", 0.0)
+            _emit(emit, f"      BTC.D OK ({btc:.2f}%)")
+        else:
+            _emit(emit, "      BTC.D: CoinGecko unavailable")
+    except Exception as e:
+        _emit(emit, f"      BTC.D FAIL: {e}")
+
     _emit(emit, f"[4/4] Ensamblando prompt ({mode.upper()})...")
     from pineforge_ai.prompt_builder import build_prompt, save_prompt, send_to_ai as send_fn
 
@@ -299,11 +313,13 @@ def generate_prompt(
         correlations=correlations,
         volatility=volatility,
         usdt_data=usdt_data,
+        market_cap_data=market_cap_data,
         source=actual_source,
         exchange=exchange,
         candle_counts=candle_counts,
         dt_utc=dt_utc,
         mode=mode,
+        ai_summary=ai_summary,
     )
 
     file_path = None

@@ -71,77 +71,103 @@ Estructura JSON exacta requerida:
 
 SYSTEM_PROMPT_MINDSET = """Eres un trader institucional SMC con protocolo Pre-NY activado.
 Tu tarea: analizar sesión de Asia y London antes de apertura de Nueva York,
-evaluar USDT.D y estructura de BTC, producir un plan de trading estructurado.
+evaluar USDT.D, BTC.D y estructura de BTC, producir un plan de trading legible.
 
 REGLAS ESTRICTAS:
-1. Responde SIEMPRE y ÚNICAMENTE en JSON válido, sin texto extra.
+1. Responde en TEXTO ESTRUCTURADO con secciones, NO en JSON.
 2. Usa los datos OHLCV reales para identificar HIGH/LOW de Asia y London.
 3. Asia session = 00:00–09:00 UTC. London = 08:00–13:30 UTC.
-4. Si faltan datos para un campo, usa null — no inventes niveles.
+4. Si faltan datos escribe "N/D" — no inventes niveles.
 5. USDT.D subiendo → sesgo SHORT crypto. Bajando → sesgo LONG crypto.
-6. Liquidity taken = Caso A (NY continúa). Intacta = Caso B (NY manipula primero).
+6. BTC.D alto (>55%) → BTC season. BTC.D bajo (<45%) → altseason.
+7. Liquidity taken = Caso A (NY continúa). Intacta = Caso B (NY manipula primero).
 
-Estructura JSON exacta:
-{
-  "asia_session": {
-    "high": 0.0,
-    "low": 0.0,
-    "type": "range|trend",
-    "liquidity_side": "above|below|both|none"
-  },
-  "london_session": {
-    "broke_asia_high": false,
-    "broke_asia_low": false,
-    "type": "manipulation|intention|unclear",
-    "sweep_dir": "up|down|none",
-    "fvg_or_ob_post_sweep": "string description or null"
-  },
-  "usdt_d": {
-    "value": 0.0,
-    "trend": "bull|bear|neutral",
-    "zone": "High|Mid|Low",
-    "signal": "long_bias|short_bias|neutral"
-  },
-  "btc_structure": {
-    "location": "pdh|pdl|mid",
-    "recent_event": "bos|choch|none",
-    "bias": "bull|bear|neutral"
-  },
-  "market_state": {
-    "liquidity_taken": false,
-    "case": "A|B",
-    "conclusion": "string"
-  },
-  "scenarios": {
-    "long": {
-      "condition": "string — qué debe ocurrir para activar LONG",
-      "entry_zone": "string",
-      "sl": "string",
-      "tp1": "string",
-      "tp2": "string",
-      "invalidation": "string"
-    },
-    "short": {
-      "condition": "string — qué debe ocurrir para activar SHORT",
-      "entry_zone": "string",
-      "sl": "string",
-      "tp1": "string",
-      "tp2": "string",
-      "invalidation": "string"
-    }
-  },
-  "verdict": {
-    "should_trade": false,
-    "reason": "string",
-    "optimal_session": "string",
-    "checklist": {
-      "sweep_seen": false,
-      "confirmation_seen": false,
-      "usdt_d_aligned": false,
-      "structure_clear": false
-    }
-  }
-}"""
+FORMATO DE RESPUESTA OBLIGATORIO:
+
+═══ SESIÓN ASIA ═══
+High: [precio exacto]
+Low: [precio exacto]
+Tipo: [Rango / Tendencia]
+Liquidez: [Arriba / Abajo / Ambos / Ninguno]
+
+═══ SESIÓN LONDON ═══
+Rompió High de Asia: [Sí / No]
+Rompió Low de Asia: [Sí / No]
+Tipo de movimiento: [Manipulación / Intención / Poco claro]
+Dirección del sweep: [Arriba / Abajo / Ninguno]
+FVG u OB post-sweep: [descripción o N/D]
+
+═══ DOMINANCIAS ═══
+USDT.D: [valor%] | Tendencia: [Alcista/Bajista/Neutral] | Zona: [High/Mid/Low] | Sesgo: [Long/Short/Neutral]
+BTC.D:  [valor%] | Zona: [BTC season / Transitional / Altseason] | Impacto: [descripción breve]
+
+═══ ESTRUCTURA BTC ═══
+Ubicación: [PDH / PDL / Mid-range]
+Evento reciente: [BOS Alcista / BOS Bajista / CHoCH / Ninguno]
+Sesgo: [Alcista / Bajista / Neutral]
+
+═══ ESTADO DE MERCADO ═══
+Liquidez tomada: [Sí / No]
+Caso: [A — NY continúa tendencia / B — NY manipula primero]
+Conclusión: [una o dos frases]
+
+═══ ESCENARIOS ═══
+
+▶ LONG
+  Condición: [qué debe ocurrir para activar]
+  Entrada: [precio o rango]
+  Stop Loss: [precio]
+  TP1: [precio] | TP2: [precio]
+  Invalidación: [qué cancela el setup]
+
+▶ SHORT
+  Condición: [qué debe ocurrir para activar]
+  Entrada: [precio o rango]
+  Stop Loss: [precio]
+  TP1: [precio] | TP2: [precio]
+  Invalidación: [qué cancela el setup]
+
+═══ VEREDICTO ═══
+¿Operar ahora?: [Sí / No / Esperar confirmación]
+Razón: [explicación directa]
+Sesión óptima: [nombre y horario UTC]
+Checklist:
+  [✅/❌] Sweep visto
+  [✅/❌] Confirmación post-sweep
+  [✅/❌] USDT.D alineado
+  [✅/❌] Estructura clara"""
+
+
+_SUMMARY_INSTRUCTION = """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[INSTRUCCIÓN ADICIONAL — RESUMEN PARA WEB]
+
+Después de tu análisis completo, agrega una sección final con este formato exacto.
+No analices desde cero. Solo resume e interpreta lo que ya dijiste.
+
+REGLAS:
+- Máximo 120 palabras en el resumen total.
+- Lenguaje simple, emojis, apto para alguien nuevo en trading.
+- No prometas ganancias. No digas "100% seguro".
+- Si no hay señal clara: escribe "⚠️ Esperar confirmación".
+- Si faltan datos para entrada, TP o SL, escribe "N/D" — no los inventes.
+
+━━━ RESUMEN WEB ━━━
+🟠 {SYMBOL}
+
+📍 Estado: [Resumen corto del mercado en 1 frase]
+🧭 Sesgo: [🟢 Alcista / 🔴 Bajista / 🟡 Mixto]
+🎯 Plan: [LONG / SHORT / ⚠️ Esperar confirmación]
+
+📌 Niveles clave:
+   Entrada: [precio o N/D]
+   SL: [precio o N/D]
+   TP: [precio(s) o N/D]
+
+🧠 Por qué: [1–2 frases simples]
+⚠️ Cuidado: [qué debe evitar el usuario]
+🏁 Veredicto: [decisión final en 1 frase]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
 
 
 # ─── Formatting Helpers ───────────────────────────────────────────────────────
@@ -187,7 +213,7 @@ def _build_header(symbol, source, exchange, timeframes, candle_counts, dt_utc):
     candles_str = "  |  ".join(f"{tf.upper()}×{candle_counts.get(tf, '?')}" for tf in timeframes)
     return (
         f"{sep}\n"
-        f"  PINEFORGE AI v3 — MARKET ANALYSIS REQUEST\n"
+        f"  AI TRADER v3 — MARKET ANALYSIS REQUEST\n"
         f"  Symbol   : {symbol}  |  Source: {source.upper()} ({exchange})\n"
         f"  Generated: {dt_utc.strftime('%Y-%m-%d %H:%M UTC')}\n"
         f"  Data     : {candles_str}\n"
@@ -457,6 +483,39 @@ def _build_volatility(vol, timeframes):
     return "\n".join(lines)
 
 
+def _build_market_cap(mc_data: dict | None) -> str:
+    lines = [_section("CRYPTO MARKET — BTC & ALTCOIN DOMINANCE")]
+    if not mc_data or not mc_data.get("available"):
+        lines.append("  (CoinGecko unavailable)")
+        return "\n".join(lines)
+
+    btc = mc_data.get("btc_dominance", 0.0)
+    eth = mc_data.get("eth_dominance", 0.0)
+    alt = mc_data.get("altcoin_dominance", 0.0)
+    total_mc = mc_data.get("total_market_cap_usd", 0.0)
+    vol_24h = mc_data.get("total_volume_24h_usd", 0.0)
+    mc_change = mc_data.get("market_cap_change_24h_pct", 0.0)
+    btc_zone = mc_data.get("btc_zone", "—")
+    mc_signal = mc_data.get("mc_signal", "—")
+    top5 = mc_data.get("top_dominances", {})
+    fetched_at = mc_data.get("fetched_at", "—")
+
+    def _fmt_mc(val):
+        if val >= 1e12: return f"${val/1e12:.3f}T"
+        if val >= 1e9:  return f"${val/1e9:.2f}B"
+        if val >= 1e6:  return f"${val/1e6:.1f}M"
+        return f"${val:.0f}"
+
+    lines.append(f"  BTC.D : {btc:.2f}%  |  ETH.D: {eth:.2f}%  |  Altcoins: {alt:.1f}%")
+    lines.append(f"  Zone  : {btc_zone}")
+    lines.append(f"  Total : {_fmt_mc(total_mc)}  |  Vol 24h: {_fmt_mc(vol_24h)}  |  Δ24h: {mc_change:+.2f}%  →  {mc_signal}")
+    if top5:
+        top5_str = "  |  ".join(f"{k.upper()}={v:.1f}%" for k, v in top5.items())
+        lines.append(f"  Top5  : {top5_str}")
+    lines.append(f"  Source: CoinGecko  |  As of: {fetched_at}")
+    return "\n".join(lines)
+
+
 def _build_usdt_dominance(usdt_data: dict | None) -> str:
     lines = [_section("USDT DOMINANCE")]
     if not usdt_data or not usdt_data.get("available"):
@@ -543,8 +602,9 @@ def _build_pretrain_context(pretrain_summary):
     return "\n".join(lines)
 
 
-def _build_request(symbol, timeframes, dt_utc):
+def _build_request(symbol, timeframes, dt_utc, ai_summary: bool = False):
     tf_str = ", ".join(t.upper() for t in timeframes)
+    summary_block = _SUMMARY_INSTRUCTION.replace("{SYMBOL}", symbol) if ai_summary else ""
     return f"""{_section("ROLE & ANALYSIS RULES")}
 {SYSTEM_PROMPT}
 
@@ -555,11 +615,13 @@ Hora UTC: {dt_utc.strftime('%Y-%m-%d %H:%M')}
 
 Aplica el rol y reglas definidos arriba sobre los datos de indicadores provistos.
 Devuelve ÚNICAMENTE el JSON con la estructura especificada. Sin texto adicional.
+{summary_block}
 {_separator()}"""
 
 
-def _build_request_mindset(symbol, timeframes, dt_utc):
+def _build_request_mindset(symbol, timeframes, dt_utc, ai_summary: bool = False):
     tf_str = ", ".join(t.upper() for t in timeframes)
+    summary_block = _SUMMARY_INSTRUCTION.replace("{SYMBOL}", symbol) if ai_summary else ""
     return f"""{_section("ROLE & ANALYSIS RULES")}
 {SYSTEM_PROMPT_MINDSET}
 
@@ -579,28 +641,28 @@ def _build_request_mindset(symbol, timeframes, dt_utc):
 9. ¿Hay CHoCH o BOS visible en 15m/1h después del sweep?
 10. ¿Hay Fair Value Gap (FVG) o Order Block relevante post-sweep?
 
-[USDT.D STATUS — ver sección USDT DOMINANCE]
-11. ¿USDT.D está subiendo o bajando?
-12. ¿En qué zona está? (High >5% / Mid 3-5% / Low <3%)
-13. ¿Qué sesgo implica para crypto? (risk-on → LONG / risk-off → SHORT / neutral)
+[USDT.D + BTC.D STATUS]
+11. ¿USDT.D está subiendo o bajando? ¿En qué zona? (High >5% / Mid 3-5% / Low <3%)
+12. ¿Qué sesgo implica USDT.D para crypto? (risk-on → LONG / risk-off → SHORT / neutral)
+13. ¿BTC.D está en zona alta (>55%), media o baja (<45%)? ¿Favorece BTC o altcoins?
 
 [BTC STRUCTURE]
 14. ¿BTC está en PDH (Previous Day High), PDL (Previous Day Low) o mid-range?
-15. ¿Hay BOS o CHoCH reciente en BTC que confirme o invalide el setup del altcoin?
+15. ¿Hay BOS o CHoCH reciente en BTC que confirme o invalide el setup?
 
 [ANALYSIS REQUEST]
 Símbolo: {symbol}
 Timeframes: {tf_str}
 Hora UTC: {dt_utc.strftime('%Y-%m-%d %H:%M')}
 
-Eres un trader institucional SMC. Con los datos OHLCV (sección OHLCV — 14D HISTORY),
-indicadores e info de sesiones provistos:
-1. Responde las 15 preguntas del checklist Pre-NY con datos reales del OHLCV provisto
-2. Define: ¿el mercado ya tomó liquidez (Caso A) o aún no (Caso B)?
-3. Plantea SOLO 2 escenarios (LONG y SHORT) con condiciones exactas y niveles de precio
-4. Da veredicto: ¿señal válida ahora o ESPERAR? Incluye el checklist final
+Con los datos OHLCV (sección OHLCV — 14D HISTORY), indicadores, dominancias y sesiones:
+1. Responde el checklist Pre-NY con datos reales
+2. Define: ¿mercado ya tomó liquidez (Caso A) o aún no (Caso B)?
+3. Plantea 2 escenarios (LONG y SHORT) con condiciones y niveles exactos
+4. Da veredicto claro: operar ahora o esperar — con checklist final
 
-Devuelve ÚNICAMENTE el JSON con la estructura especificada. Sin texto adicional.
+Usa el FORMATO DE RESPUESTA definido arriba (secciones con ═══, NO JSON).
+{summary_block}
 {_separator()}"""
 
 
@@ -614,20 +676,22 @@ def build_prompt(
     lux_summary: dict | None = None,
     smc_sum: dict | None = None,
     tq_summary: dict | None = None,
-    cc_summary: dict | None = None,       # kept for backward compat (cybercycle removed from defaults)
+    cc_summary: dict | None = None,
     ict_sum: dict | None = None,
     tl_summary: dict | None = None,
-    it_summary: dict | None = None,       # Ehlers iTrend
+    it_summary: dict | None = None,
     correlations: dict | None = None,
     volatility: dict | None = None,
     pretrain_summary: list[str] | None = None,
     usdt_data: dict | None = None,
+    market_cap_data: dict | None = None,
     source: str = "auto",
     exchange: str = "binance",
     candle_counts: dict[str, int] | None = None,
     dt_utc: datetime | None = None,
-    mode: str = "signal",                 # "signal" | "mindset"
+    mode: str = "signal",
     ohlcv_history_days: int = 14,
+    ai_summary: bool = False,
 ) -> str:
     if dt_utc is None:
         dt_utc = datetime.now(tz=timezone.utc)
@@ -651,7 +715,7 @@ def build_prompt(
     if correlations: blocks.append(_build_correlations(correlations))
     if volatility:   blocks.append(_build_volatility(volatility, timeframes))
 
-    # USDT.D dominance (always included; shows "daemon not running" if unavailable)
+    blocks.append(_build_market_cap(market_cap_data))
     blocks.append(_build_usdt_dominance(usdt_data))
 
     # Raw OHLCV history (14 days)
@@ -661,9 +725,9 @@ def build_prompt(
         blocks.append(_build_pretrain_context(pretrain_summary))
 
     if mode == "mindset":
-        blocks.append(_build_request_mindset(symbol, timeframes, dt_utc))
+        blocks.append(_build_request_mindset(symbol, timeframes, dt_utc, ai_summary=ai_summary))
     else:
-        blocks.append(_build_request(symbol, timeframes, dt_utc))
+        blocks.append(_build_request(symbol, timeframes, dt_utc, ai_summary=ai_summary))
 
     return "\n\n".join(blocks)
 

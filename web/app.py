@@ -1,4 +1,4 @@
-"""FastAPI app for generating PineForge prompt files from a browser."""
+"""FastAPI app for generating AI Trader prompt files from a browser."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from pineforge_ai.config import ALL_INDICATORS, DEFAULT_EXCHANGE
-from pineforge_ai.runner import generate_prompt_file
+from pineforge_ai.runner import generate_prompt, generate_prompt_file
 
 
 TIMEFRAME_ORDER = [
@@ -32,7 +32,7 @@ TIMEFRAME_ORDER = [
 DEFAULT_WEB_TIMEFRAMES = {"1h", "4h", "1d", "1w"}
 
 
-app = FastAPI(title="PineForge Web Runner")
+app = FastAPI(title="AI Trader Web Runner")
 
 
 INDEX_HTML = """
@@ -41,7 +41,7 @@ INDEX_HTML = """
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PineForge</title>
+  <title>AI Trader</title>
   <style>
     :root {
       color-scheme: light;
@@ -212,6 +212,51 @@ INDEX_HTML = """
     }
     .error { color: var(--bad); }
     .done { color: var(--accent-strong); }
+    .btn-secondary {
+      background: #fff;
+      color: var(--accent);
+      border: 1.5px solid var(--accent);
+    }
+    .btn-secondary:hover { background: #e7f5f6; }
+    .prompt-panel {
+      margin-top: 18px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 8px 28px rgba(23, 32, 38, 0.06);
+    }
+    .prompt-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .prompt-panel-header span {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .prompt-textarea {
+      width: 100%;
+      height: 420px;
+      font-family: "Fira Mono", "Cascadia Code", "Courier New", monospace;
+      font-size: 12.5px;
+      line-height: 1.55;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px;
+      resize: vertical;
+      color: var(--ink);
+      background: #fafbfc;
+      box-sizing: border-box;
+    }
+    .copy-btn {
+      min-height: 34px;
+      padding: 0 14px;
+      font-size: 13px;
+    }
     @media (max-width: 760px) {
       main { width: min(100vw - 20px, 1120px); padding-top: 18px; }
       header { align-items: start; flex-direction: column; }
@@ -226,7 +271,7 @@ INDEX_HTML = """
 <body>
   <main>
     <header>
-      <h1>PineForge</h1>
+      <h1>AI Trader</h1>
       <div id="status" class="status"></div>
     </header>
 
@@ -286,18 +331,35 @@ INDEX_HTML = """
           <input type="checkbox" name="context" checked>
           Contexto de mercado
         </label>
+        <label class="toggle">
+          <input type="checkbox" name="ai_summary">
+          Resumen IA (agrega resumen breve con emojis al final del prompt)
+        </label>
       </div>
 
       <div class="actions">
-        <button id="submit" type="submit">Ejecutar y descargar</button>
+        <button id="btn-show" type="button" class="btn-secondary">Mostrar en página</button>
+        <button id="submit" type="submit">Descargar</button>
       </div>
     </form>
+
+    <div id="prompt-panel" class="prompt-panel" style="display:none">
+      <div class="prompt-panel-header">
+        <span>Prompt generado</span>
+        <button id="copy-btn" class="copy-btn" type="button">Copiar</button>
+      </div>
+      <textarea id="prompt-textarea" class="prompt-textarea" readonly></textarea>
+    </div>
   </main>
 
   <script>
     const form = document.querySelector("#runner-form");
     const statusEl = document.querySelector("#status");
     const submit = document.querySelector("#submit");
+    const btnShow = document.querySelector("#btn-show");
+    const promptPanel = document.querySelector("#prompt-panel");
+    const promptTextarea = document.querySelector("#prompt-textarea");
+    const copyBtn = document.querySelector("#copy-btn");
 
     function checkedValues(name) {
       return [...form.querySelectorAll(`[name="${name}"]:checked`)].map((item) => item.value);
@@ -306,17 +368,12 @@ INDEX_HTML = """
     function fileNameFromHeader(header) {
       const value = header || "";
       const match = /filename\\*?=(?:UTF-8''|")?([^";]+)/i.exec(value);
-      if (!match) return "pineforge_prompt.txt";
+      if (!match) return "ai_trader_prompt.txt";
       return decodeURIComponent(match[1].replace(/"/g, ""));
     }
 
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      statusEl.className = "status";
-      statusEl.textContent = "Generando...";
-      submit.disabled = true;
-
-      const payload = {
+    function buildPayload() {
+      return {
         symbol: form.symbol.value.trim(),
         mode: form.mode.value,
         source: form.source.value,
@@ -325,22 +382,32 @@ INDEX_HTML = """
         amount: Number(form.amount.value),
         timeframes: checkedValues("timeframes"),
         indicators: checkedValues("indicators"),
-        context: form.context.checked
+        context: form.context.checked,
+        ai_summary: form.ai_summary.checked
       };
+    }
+
+    function setLoading(flag) {
+      submit.disabled = flag;
+      btnShow.disabled = flag;
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      statusEl.className = "status";
+      statusEl.textContent = "Generando...";
+      setLoading(true);
 
       try {
         const response = await fetch("/api/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(buildPayload())
         });
 
         if (!response.ok) {
           let detail = "No se pudo generar el archivo.";
-          try {
-            const data = await response.json();
-            detail = data.detail || detail;
-          } catch (_) {}
+          try { const data = await response.json(); detail = data.detail || detail; } catch (_) {}
           throw new Error(detail);
         }
 
@@ -360,7 +427,56 @@ INDEX_HTML = """
         statusEl.className = "status error";
         statusEl.textContent = error.message;
       } finally {
-        submit.disabled = false;
+        setLoading(false);
+      }
+    });
+
+    btnShow.addEventListener("click", async () => {
+      statusEl.className = "status";
+      statusEl.textContent = "Generando...";
+      setLoading(true);
+      promptPanel.style.display = "none";
+
+      try {
+        const response = await fetch("/api/prompt-text", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(buildPayload())
+        });
+
+        if (!response.ok) {
+          let detail = "No se pudo generar el prompt.";
+          try { const data = await response.json(); detail = data.detail || detail; } catch (_) {}
+          throw new Error(detail);
+        }
+
+        const data = await response.json();
+        promptTextarea.value = data.prompt || "";
+        promptPanel.style.display = "block";
+        promptPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+
+        statusEl.className = "status done";
+        statusEl.textContent = "Prompt listo.";
+      } catch (error) {
+        statusEl.className = "status error";
+        statusEl.textContent = error.message;
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    copyBtn.addEventListener("click", async () => {
+      const text = promptTextarea.value;
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = "Copiado!";
+        setTimeout(() => { copyBtn.textContent = "Copiar"; }, 1800);
+      } catch (_) {
+        promptTextarea.select();
+        document.execCommand("copy");
+        copyBtn.textContent = "Copiado!";
+        setTimeout(() => { copyBtn.textContent = "Copiar"; }, 1800);
       }
     });
   </script>
@@ -458,6 +574,7 @@ async def generate(request: Request) -> FileResponse:
             no_context = _bool_value(payload.get("no_context"))
         else:
             no_context = not context_enabled
+        ai_summary = _bool_value(payload.get("ai_summary"), default=False)
 
         result = generate_prompt_file(
             symbol=str(payload.get("symbol", "")).strip(),
@@ -469,6 +586,7 @@ async def generate(request: Request) -> FileResponse:
             exchange=str(payload.get("exchange", DEFAULT_EXCHANGE)).strip() or DEFAULT_EXCHANGE,
             no_context=no_context,
             mode=str(payload.get("mode", "mindset")).strip() or "mindset",
+            ai_summary=ai_summary,
             send_to_ai=False,
             emit=None,
         )
@@ -487,3 +605,40 @@ async def generate(request: Request) -> FileResponse:
         media_type="text/plain",
         filename=os.path.basename(result.file_path),
     )
+
+
+@app.post("/api/prompt-text")
+async def prompt_text(request: Request) -> JSONResponse:
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            raise ValueError("JSON object body is required")
+
+        days, candles = _history_from_payload(payload)
+        context_enabled = _bool_value(payload.get("context"), default=True)
+        no_context = not context_enabled if "no_context" not in payload else _bool_value(payload.get("no_context"))
+        ai_summary = _bool_value(payload.get("ai_summary"), default=False)
+
+        result = generate_prompt(
+            symbol=str(payload.get("symbol", "")).strip(),
+            indicators=payload.get("indicators", "all"),
+            timeframes=payload.get("timeframes"),
+            days=days,
+            candles=candles,
+            source=str(payload.get("source", "auto")).strip() or "auto",
+            exchange=str(payload.get("exchange", DEFAULT_EXCHANGE)).strip() or DEFAULT_EXCHANGE,
+            no_context=no_context,
+            mode=str(payload.get("mode", "mindset")).strip() or "mindset",
+            ai_summary=ai_summary,
+            send_to_ai=False,
+            save=False,
+            emit=None,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    return JSONResponse({"prompt": result.prompt})
