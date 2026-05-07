@@ -1,0 +1,10 @@
+pandas>=2.0
+numpy>=1.24
+yfinance>=0.2.40
+ccxt>=4.0
+scipy>=1.11
+click>=8.1
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-dateutil>=2.8
+pytz>=2024.1

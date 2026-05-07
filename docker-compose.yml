@@ -1,0 +1,11 @@
+services:
+  pineforge-web:
+    build: .
+    container_name: pineforge-web
+    ports:
+      - "8100:8100"
+    volumes:
+      - ./output:/app/pineforge_ai/output
+    environment:
+      PYTHONUNBUFFERED: "1"
+    restart: unless-stopped

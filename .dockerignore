@@ -1,0 +1,10 @@
+.git/
+.agents/
+.claude/
+.codex/
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+output/
+pineforge_ai/output/
