@@ -1,0 +1,143 @@
+═════════════════════════════════════════════════════════════════
+  PINEFORGE AI — MARKET ANALYSIS REQUEST
+  Symbol   : BTC/USDT  |  Source: CCXT (binance)
+  Generated: 2026-04-30 21:50 UTC
+  Data     : 1H×3030  |  4H×870  |  1D×270
+═════════════════════════════════════════════════════════════════
+
+
+[SESSION STATUS]
+Activas : Sydney, New York
+Cerradas: Tokyo, Shanghai, India, Frankfurt, London, Wall Street Core
+Liquidez: ALTA
+
+
+[PRICE SNAPSHOT]
+TF          Open            High            Low            Close          Volume   
+---------------------------------------------------------------------------
+1H       76,492.45       76,535.42       76,283.61       76,326.80        127.04   
+4H       76,412.80       76,568.90       76,283.61       76,336.81        434.18   
+1D       75,780.00       76,669.14       75,323.65       76,336.81        10.00K   
+
+
+[WAVETREND OSCILLATOR — MTF]
+TF       Osc      Trigger    Hyper       Trend            Signal      
+-----------------------------------------------------------------
+1H       66.8       68.2      67.1     → Neutral        MomCrossDn    
+4H       36.3       33.9      27.4     → Neutral            —         
+1D       62.2       65.2      73.6     → Neutral            —         
+
+MTF Alignment: 0Bull/0Bear/3Neutral — Mixed
+
+
+[LUXALGO ADAPTIVE MOMENTUM — MTF]
+TF        AMO         AMA          Dir            Divergence     
+------------------------------------------------------------
+1H     +573.6151   +735.7004      ↑ Bull              —          
+4H     -1075.6767  -1479.4712     ↓ Bear              —          
+1D     +529.8811   +4672.9276     ↑ Bull              —          
+
+
+[SMC ELITE — MARKET STRUCTURE]
+TF       Last Event      BOS Level            Bull OB                 Bear OB        
+--------------------------------------------------------------------------------
+1H       CHoCH Bear          —          [70755.88–70792.89]     [77046.31–77642.00]  
+4H       CHoCH Bear          —          [73801.79–74965.46]     [88053.71–88352.97]  
+1D        BOS Bull           —                   —              [95413.99–96951.78]  
+
+TF           Bull FVG              Bear FVG                Fisher                Frost          Score  
+------------------------------------------------------------------------------------------------
+1H     [75867.90–76019.57]   [77240.00–77485.81]      +1.03 (CrossDn)       Bull (conf 5.6)     3.5/10 
+4H              —            [76274.80–76972.32]           -0.37            Bear (conf 3.1)     2.0/10 
+1D     [73137.24–73795.47]            —                    +0.54            Bear (conf 2.5)     0.0/10 
+
+
+[ANALYSIS REQUEST]
+Eres un trader institucional experto en Smart Money Concepts (SMC), análisis técnico
+de elite, y correlación de mercados globales.
+
+Con los datos anteriores — indicadores WaveTrend, LuxAlgo AMO y SMC Elite en los
+timeframes 1H, 4H, 1D — realiza el análisis completo de BTC/USDT:
+
+1. TENDENCIA DOMINANTE
+   - Bias HTF (timeframes mayores) vs LTF (timeframes menores)
+   - Alineación multi-timeframe: ¿confluencia o divergencia?
+
+2. ZONAS CLAVE DE INTERÉS
+   - Order Blocks activos de mayor relevancia (señala nivel, TF, fuerza)
+   - Fair Value Gaps sin mitigar más importantes
+   - Niveles BOS/CHoCH como soporte/resistencia clave
+
+3. SETUPS DE ENTRADA POTENCIALES
+   Para cada setup válido con al menos 5/10 de confluencia:
+   - Dirección: long / short
+   - Zona de entrada (precio o rango)
+   - Stop Loss: nivel exacto y justificación
+   - Take Profit 1 y Take Profit 2
+   - Risk/Reward ratio
+   - Timeframe de ejecución
+   - Trigger: qué debe pasar para activar la entrada
+   - Nivel de confianza 1-10
+
+4. SESIÓN ÓPTIMA DE EJECUCIÓN
+   - Considerando solapamientos de liquidez y datos de sesión actuales
+   - Horario UTC recomendado para el setup
+
+5. RIESGOS PRINCIPALES
+   - Confluencias técnicas en contra del setup
+   - Divergencias sin resolver
+   - Eventos o condiciones de mercado adversas
+
+6. CONTEXTO DE MERCADOS GLOBALES
+   - Correlación con DXY (si aplica)
+   - Estado de índices principales (S&P500, DAX, etc.)
+   - Impacto de sesiones asiáticas en el activo analizado
+   - Cualquier factor macro relevante
+
+Responde ÚNICAMENTE en JSON válido con esta estructura exacta:
+{
+  "symbol": "BTC/USDT",
+  "analysis_time": "2026-04-30 21:50 UTC",
+  "trend_analysis": {
+    "dominant": "bullish|bearish|neutral",
+    "htf_bias": "descripción del bias HTF",
+    "ltf_bias": "descripción del bias LTF",
+    "mtf_alignment": "confluencia|divergencia|mixto",
+    "by_tf": {"1H": "bull|bear|neutral"}
+  },
+  "key_zones": [
+    {
+      "type": "OB|FVG|BOS|CHoCH",
+      "direction": "bull|bear",
+      "tf": "1H",
+      "level_top": 0.0,
+      "level_bottom": 0.0,
+      "strength": 8,
+      "description": "string"
+    }
+  ],
+  "entries": [
+    {
+      "id": 1,
+      "direction": "long|short",
+      "entry_zone": [0.0, 0.0],
+      "stop_loss": 0.0,
+      "take_profit_1": 0.0,
+      "take_profit_2": 0.0,
+      "risk_reward": 0.0,
+      "execution_tf": "1H",
+      "trigger": "descripción del trigger de entrada",
+      "confidence": 7,
+      "notes": "string"
+    }
+  ],
+  "optimal_session": "London-NY overlap (13:30-17:00 UTC)",
+  "risks": ["string", "string"],
+  "global_context": {
+    "dxy": "bullish|bearish|neutral",
+    "sp500": "bullish|bearish|neutral",
+    "notes": "string"
+  },
+  "summary": "Un párrafo breve con el análisis general y recomendación principal"
+}
+═════════════════════════════════════════════════════════════════

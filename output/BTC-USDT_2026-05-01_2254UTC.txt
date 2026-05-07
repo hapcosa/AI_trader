@@ -1,0 +1,76 @@
+══════════════════════════════════════════════════════════════════════
+  PINEFORGE AI v2 — MARKET ANALYSIS REQUEST
+  Symbol   : BTC/USDT  |  Source: CCXT (binance)
+  Generated: 2026-05-01 22:54 UTC
+  Data     : 1H×270
+══════════════════════════════════════════════════════════════════════
+
+
+[SESSION STATUS]
+Activas : Sydney
+Cerradas: Tokyo, Shanghai, India, Frankfurt, London, New York, Wall Street Core
+Liquidez: BAJA
+
+
+[PRICE SNAPSHOT]
+TF          Open            High            Low            Close          Volume   
+--------------------------------------------------------------------------------
+1H       78,200.00       78,411.13       78,144.70       78,158.22        325.14   
+
+
+[WAVETREND OSCILLATOR — MTF]
+TF       Osc      Trig    Hyper     EOT       Trend       Vol             Signal        
+------------------------------------------------------------------------------------------
+1H       62.9     63.3     71.0     61.5    → Neutral    normal         CP Bounce↓      
+
+MTF Alignment: Mixed: 0B/0Bear/1N
+
+
+[LUXALGO ADAPTIVE MOMENTUM — MTF]
+TF         AMO          AMA          Dir             Divergence      
+-----------------------------------------------------------------
+1H      +860.2989    +1052.9950     ↑ Bull               —           
+
+
+[TREND QUALITY — WAE + CHOPPINESS]
+TF           WAE State          TrendUp    TrendDn     Chop      Regime  
+------------------------------------------------------------------------
+1H           Bear Fade            0.00      667.10     50.5      Mixed   
+
+
+[EHLERS CYBERCYCLE — MTF]
+TF       Cycle     Trigger     Osc       Trend      Period   Conf      Zone         Signal    
+-----------------------------------------------------------------------------------------------
+1H     -120.1396   -82.6307    10.2    → Neutral     3.8     3.8     OverSold         —       
+
+
+[SMC BUDA — MARKET STRUCTURE]
+TF       Last Event      BOS Level              Bull OB                    Bear OB         
+------------------------------------------------------------------------------------------
+1H       Sweep Bear          —           [76,237.06–76,241.77]      [78,657.55–79,308.60]  
+
+TF            Bull FVG                Bear FVG          Sweep            Fisher           Score  
+--------------------------------------------------------------------------------------------
+1H     [77,600.00–77,896.00]   [78,200.00–78,313.16] ◄     —              +0.74            0.0/10 
+
+
+[ICT CONCEPTS — STRUCTURE & LIQUIDITY]
+TF      Last Event       BSL           SSL            Bull FVG            Bear FVG                Recent         
+---------------------------------------------------------------------------------------------------------
+1H          —         78,914.12     77,752.00    [77,600.00-77,896.00]  [78,200.00-78,313.16]  Displacement, VolImb Dn 
+
+
+[TRENDLINES — DIAGONAL STRUCTURE]
+TF        Upper TL        Lower TL        Slope↑        Slope↓           Signal      
+--------------------------------------------------------------------------------
+1H       76,408.56       76,886.76       37.4854       24.9395             —         
+
+
+[ANALYSIS REQUEST]
+Símbolo: BTC/USDT
+Timeframes: 1H
+Hora UTC: 2026-05-01 22:54
+
+Aplica el rol y reglas del system prompt sobre los datos anteriores.
+Devuelve ÚNICAMENTE el JSON con la estructura especificada.
+══════════════════════════════════════════════════════════════════════

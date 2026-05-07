@@ -1,0 +1,157 @@
+══════════════════════════════════════════════════════════════════════
+  PINEFORGE AI v2 — MARKET ANALYSIS REQUEST
+  Symbol   : BTC/USDT  |  Source: CCXT (binance)
+  Generated: 2026-05-01 23:08 UTC
+  Data     : 1H×3030  |  4H×870  |  1D×270
+══════════════════════════════════════════════════════════════════════
+
+
+[SESSION STATUS]
+Activas : Sydney
+Cerradas: Tokyo, Shanghai, India, Frankfurt, London, New York, Wall Street Core
+Liquidez: BAJA
+
+
+[PRICE SNAPSHOT]
+TF          Open            High            Low            Close          Volume   
+--------------------------------------------------------------------------------
+1H       78,153.37       78,160.21       78,100.00       78,132.03        16.04    
+4H       78,360.01       78,422.81       77,752.00       78,132.03        1.66K    
+1D       76,346.58       78,914.12       76,320.42       78,125.03        17.16K   
+
+
+[WAVETREND OSCILLATOR — MTF]
+TF       Osc      Trig    Hyper     EOT       Trend       Vol             Signal        
+------------------------------------------------------------------------------------------
+1H       59.5     61.2     67.0     58.0    → Neutral    normal             —           
+4H       90.4     91.8     80.4     72.5    → Neutral    normal         MomCrossDn      
+1D       68.9     65.6     71.3     80.9      ↑ Bull      low     MomCrossUp, CP Bounce↓
+
+MTF Alignment: Mixed: 1B/0Bear/2N
+
+
+[LUXALGO ADAPTIVE MOMENTUM — MTF]
+TF         AMO          AMA          Dir             Divergence      
+-----------------------------------------------------------------
+1H      +768.8351    +958.8495      ↑ Bull               —           
+4H      +3432.0749   +2865.8657     ↑ Bull               —           
+1D      +1004.2991   +4339.7149     ↑ Bull               —           
+
+
+[TREND QUALITY — WAE + CHOPPINESS]
+TF           WAE State          TrendUp    TrendDn     Chop      Regime  
+------------------------------------------------------------------------
+1H           Bear Fade            0.00     1071.27     49.7      Mixed   
+4H        ↑ Bull Explosion      7317.44      0.00      37.1     Trending 
+1D           Bull Fade          6196.45      0.00      62.4      Choppy  
+
+
+[EHLERS CYBERCYCLE — MTF]
+TF       Cycle     Trigger     Osc       Trend      Period   Conf      Zone         Signal    
+-----------------------------------------------------------------------------------------------
+1H      -35.5008   -73.2047    34.4      ↑ Bull      3.8     1.1     OverSold     BullCross   
+4H      150.114    143.9711    25.9      ↑ Bull      3.8     2.6    OverBought        —       
+1D     -219.8196  -272.7643    36.6      ↑ Bull      3.8     1.3     OverSold     BullCross   
+
+
+[SMC BUDA — MARKET STRUCTURE]
+TF       Last Event      BOS Level              Bull OB                    Bear OB         
+------------------------------------------------------------------------------------------
+1H       Sweep Bear          —           [76,237.06–76,241.77]      [78,657.55–79,308.60]  
+4H       CHoCH Bull          —           [77,130.54–77,131.08]      [88,053.71–88,352.97]  
+1D       Sweep Bear          —                     —               [104,722.95–106,011.13] 
+
+TF            Bull FVG                Bear FVG          Sweep            Fisher           Score  
+--------------------------------------------------------------------------------------------
+1H     [77,600.00–77,896.00]   [78,200.00–78,313.16]      —              +0.61            1.0/10 
+4H     [77,600.00–78,131.02] ◄            —                —              +1.02            5.0/10 
+1D     [73,137.24–73,795.47]   [79,424.00–81,118.00]      —              +0.46            1.0/10 
+
+
+[ICT CONCEPTS — STRUCTURE & LIQUIDITY]
+TF      Last Event       BSL           SSL            Bull FVG            Bear FVG                Recent         
+---------------------------------------------------------------------------------------------------------
+1H          —         78,914.12     77,752.00    [77,600.00-77,896.00]  [78,200.00-78,313.16]  Displacement, VolImb Dn 
+4H       BOS Bull     78,914.12     74,937.52    [77,600.00-78,131.02]          —           BSL Swept, IFVG Bear, Displacement, VolImb Up
+1D          —         79,485.66     74,937.52    [73,137.24-73,795.47]  [79,424.00-81,118.00]         BSL Swept        
+
+
+[TRENDLINES — DIAGONAL STRUCTURE]
+TF        Upper TL        Lower TL        Slope↑        Slope↓           Signal      
+--------------------------------------------------------------------------------
+1H       76,383.62       76,924.24       37.4854       24.9395             —         
+4H       78,404.40       77,671.58       55.5954       37.2847          Break Up     
+1D       66,685.25       71,370.65       193.0501      206.9945            —         
+
+
+[MARKET CORRELATIONS]
+Asset             Close         Δ 1D %      Trend 3D  
+-------------------------------------------------------
+DXY              98.2110        +0.13%        flat    
+SP500           7,230.1201      +0.29%         up     
+GOLD            4,625.6001      +0.24%         up     
+ETH_BTC           0.0293        -0.76%        down    
+
+
+[VOLATILITY REGIME]
+TF         ATR        ATR %ile    Realized Vol       Regime    
+-----------------------------------------------------------------
+1H       399.1992       56.2         0.0646          normal    
+4H       779.8525       20.2         0.1453       contraction  
+1D      2,289.7938      3.4          0.3631       contraction  
+
+
+[ROLE & ANALYSIS RULES]
+Eres un trader institucional senior con 15+ años de experiencia.
+Especialidades: Smart Money Concepts (SMC), Inner Circle Trader (ICT), indicadores Ehlers,
+análisis multi-timeframe, gestión de riesgo institucional y correlación de mercados globales.
+
+Tu tarea es analizar datos de indicadores técnicos en múltiples timeframes y producir un
+análisis JSON riguroso con setups de entrada accionables.
+
+REGLAS ESTRICTAS:
+1. Responde SIEMPRE y ÚNICAMENTE en JSON válido, sin texto extra antes o después.
+2. NO inventes niveles. Solo cita precios que aparecen en los datos provistos.
+3. Cada zona y setup debe citar el TF de origen.
+4. RR < 1.5 → descartar setup. Confianza < 6 → descartar.
+5. Si los indicadores muestran señales mixtas, prefiere "neutral" antes que forzar dirección.
+6. SL siempre tiene justificación estructural (OB invalidado, swing roto, etc).
+7. Si no hay setups válidos, devuelve "entries": [] — no rellenes con setups débiles.
+
+Estructura JSON exacta requerida:
+{
+  "market_state": {"phase": "accumulation|distribution|markup|markdown|ranging", "confidence": 0-10},
+  "trend_analysis": {
+    "dominant": "bullish|bearish|neutral",
+    "htf_bias": "string",
+    "ltf_bias": "string",
+    "mtf_alignment": "confluencia|divergencia|mixto",
+    "by_tf": {"<TF>": "bull|bear|neutral"}
+  },
+  "key_zones": [
+    {"type":"OB|FVG|BOS|CHoCH|BSL|SSL", "direction":"bull|bear", "tf":"<TF>",
+     "level_top":0.0, "level_bottom":0.0, "strength":0-10, "description":"string"}
+  ],
+  "entries": [
+    {"id":1, "direction":"long|short",
+     "entry_zone":[low, high], "stop_loss":0.0, "sl_reason":"string",
+     "take_profit_1":0.0, "take_profit_2":0.0, "risk_reward":0.0,
+     "execution_tf":"<TF>", "trigger":"string", "invalidation":"string",
+     "confluence_factors":["string"], "confidence":0-10, "session":"string"}
+  ],
+  "optimal_session": "string",
+  "risks": ["string"],
+  "global_context": {"dxy":"...", "sp500":"...", "gold":"...", "btc_dominance":"...", "notes":"string"},
+  "cycle_phase": "peak|trough|rising|falling|unknown",
+  "summary": "string max 3 frases"
+}
+
+
+[ANALYSIS REQUEST]
+Símbolo: BTC/USDT
+Timeframes: 1H, 4H, 1D
+Hora UTC: 2026-05-01 23:08
+
+Aplica el rol y reglas definidos arriba sobre los datos de indicadores provistos.
+Devuelve ÚNICAMENTE el JSON con la estructura especificada. Sin texto adicional.
+══════════════════════════════════════════════════════════════════════

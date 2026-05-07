@@ -1,0 +1,25 @@
+{
+  "symbol": "BTC/USDT",
+  "iteration": 2,
+  "start_date": "2026-04-08",
+  "end_date": "2026-04-15",
+  "signals": {
+    "entries": [],
+    "_dry_run": true
+  },
+  "trades": [],
+  "metrics": {
+    "n_trades": 0,
+    "n_wins": 0,
+    "n_losses": 0,
+    "winrate": 0.0,
+    "avg_rr": 0.0,
+    "expectancy_r": 0.0,
+    "total_return_pct": 0.0,
+    "max_drawdown_pct": 0.0,
+    "sharpe": 0.0,
+    "calmar": 0.0,
+    "result_breakdown": {}
+  },
+  "generated": "2026-05-01T22:54:20.245435Z"
+}
