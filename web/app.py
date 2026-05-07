@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import os
 from html import escape
+from pathlib import Path
 from typing import Any
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent.parent / ".env")
+except ImportError:
+    pass
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
@@ -305,6 +312,56 @@ INDEX_HTML = """
       background: transparent;
     }
     .tf-row input[type="number"]:focus { outline: none; color: var(--ink); }
+    .ai-response-panel {
+      margin-top: 18px;
+      background: #0f1923;
+      border: 1px solid #1e3040;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+    }
+    .ai-response-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .ai-response-header span {
+      font-size: 13px;
+      font-weight: 700;
+      color: #4ecdc4;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .ai-response-meta {
+      font-size: 11px;
+      color: #5a7a8a;
+    }
+    .ai-response-body {
+      color: #d4e8f0;
+      font-family: "Fira Mono", "Cascadia Code", "Courier New", monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .btn-ai {
+      background: linear-gradient(135deg, #087f8c, #05606a);
+      font-weight: 760;
+    }
+    .btn-ai:hover { background: linear-gradient(135deg, #05606a, #03484f); }
+    .btn-ai:disabled { opacity: 0.5; cursor: not-allowed; }
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
     @media (max-width: 760px) {
       main { width: min(100vw - 20px, 1120px); padding-top: 18px; }
       header { align-items: start; flex-direction: column; }
@@ -400,6 +457,15 @@ INDEX_HTML = """
           <div class="checks">__INDICATOR_OPTIONS__</div>
         </fieldset>
 
+        <div class="field mid">
+          <label for="model">Modelo Claude</label>
+          <select id="model" name="model">
+            <option value="claude-sonnet-4-6" selected>Sonnet 4.6 — Recomendado</option>
+            <option value="claude-opus-4-7">Opus 4.7 — Mejor análisis</option>
+            <option value="claude-haiku-4-5-20251001">Haiku 4.5 — Más rápido</option>
+          </select>
+        </div>
+
         <label class="toggle">
           <input type="checkbox" name="context" checked>
           Contexto de mercado
@@ -411,7 +477,8 @@ INDEX_HTML = """
       </div>
 
       <div class="actions">
-        <button id="btn-show" type="button" class="btn-secondary">Mostrar en página</button>
+        <button id="btn-show" type="button" class="btn-secondary">Mostrar prompt</button>
+        <button id="btn-claude" type="button" class="btn-ai">Analizar con Claude</button>
         <button id="submit" type="submit">Descargar</button>
       </div>
     </form>
@@ -423,6 +490,14 @@ INDEX_HTML = """
       </div>
       <textarea id="prompt-textarea" class="prompt-textarea" readonly></textarea>
     </div>
+
+    <div id="ai-panel" class="ai-response-panel" style="display:none">
+      <div class="ai-response-header">
+        <span>Respuesta Claude</span>
+        <span id="ai-meta" class="ai-response-meta"></span>
+      </div>
+      <div id="ai-body" class="ai-response-body"></div>
+    </div>
   </main>
 
   <script>
@@ -430,12 +505,19 @@ INDEX_HTML = """
     const statusEl = document.querySelector("#status");
     const submit = document.querySelector("#submit");
     const btnShow = document.querySelector("#btn-show");
+    const btnClaude = document.querySelector("#btn-claude");
     const promptPanel = document.querySelector("#prompt-panel");
     const promptTextarea = document.querySelector("#prompt-textarea");
     const copyBtn = document.querySelector("#copy-btn");
+    const aiPanel = document.querySelector("#ai-panel");
+    const aiBody = document.querySelector("#ai-body");
+    const aiMeta = document.querySelector("#ai-meta");
+
+    let lastPrompt = null;
+    let lastMode = null;
 
     function checkedValues(name) {
-      return [...form.querySelectorAll(`[name="${name}"]:checked`)].map((item) => item.value);
+      return [...form.querySelectorAll(`[name="${name}"]:checked`)].map((el) => el.value);
     }
 
     function fileNameFromHeader(header) {
@@ -468,6 +550,15 @@ INDEX_HTML = """
     function setLoading(flag) {
       submit.disabled = flag;
       btnShow.disabled = flag;
+      btnClaude.disabled = flag;
+    }
+
+    function fmtTokens(usage) {
+      if (!usage) return "";
+      const cached = (usage.cache_read_input_tokens || 0);
+      const inp = usage.input_tokens || 0;
+      const out = usage.output_tokens || 0;
+      return `in: ${inp} | out: ${out} | cache hit: ${cached}`;
     }
 
     form.addEventListener("submit", async (event) => {
@@ -475,72 +566,100 @@ INDEX_HTML = """
       statusEl.className = "status";
       statusEl.textContent = "Generando...";
       setLoading(true);
-
       try {
         const response = await fetch("/api/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(buildPayload())
         });
-
         if (!response.ok) {
           let detail = "No se pudo generar el archivo.";
-          try { const data = await response.json(); detail = data.detail || detail; } catch (_) {}
+          try { const d = await response.json(); detail = d.detail || detail; } catch (_) {}
           throw new Error(detail);
         }
-
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
         link.download = fileNameFromHeader(response.headers.get("Content-Disposition"));
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
+        document.body.appendChild(link); link.click(); link.remove();
         URL.revokeObjectURL(url);
-
         statusEl.className = "status done";
         statusEl.textContent = "Descarga iniciada.";
       } catch (error) {
         statusEl.className = "status error";
         statusEl.textContent = error.message;
-      } finally {
-        setLoading(false);
-      }
+      } finally { setLoading(false); }
     });
 
     btnShow.addEventListener("click", async () => {
       statusEl.className = "status";
-      statusEl.textContent = "Generando...";
+      statusEl.textContent = "Generando prompt...";
       setLoading(true);
       promptPanel.style.display = "none";
-
       try {
+        const payload = buildPayload();
         const response = await fetch("/api/prompt-text", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(buildPayload())
+          body: JSON.stringify(payload)
         });
-
         if (!response.ok) {
           let detail = "No se pudo generar el prompt.";
-          try { const data = await response.json(); detail = data.detail || detail; } catch (_) {}
+          try { const d = await response.json(); detail = d.detail || detail; } catch (_) {}
           throw new Error(detail);
         }
-
         const data = await response.json();
-        promptTextarea.value = data.prompt || "";
+        lastPrompt = data.prompt || "";
+        lastMode = payload.mode;
+        promptTextarea.value = lastPrompt;
         promptPanel.style.display = "block";
         promptPanel.scrollIntoView({ behavior: "smooth", block: "start" });
-
         statusEl.className = "status done";
-        statusEl.textContent = "Prompt listo.";
+        statusEl.textContent = "Prompt listo. Puedes enviarlo a Claude.";
       } catch (error) {
         statusEl.className = "status error";
         statusEl.textContent = error.message;
-      } finally {
-        setLoading(false);
+      } finally { setLoading(false); }
+    });
+
+    btnClaude.addEventListener("click", async () => {
+      const prompt = lastPrompt || promptTextarea.value;
+      if (!prompt) {
+        statusEl.className = "status error";
+        statusEl.textContent = "Genera el prompt primero (Mostrar prompt).";
+        return;
       }
+      statusEl.className = "status";
+      statusEl.textContent = "";
+      statusEl.innerHTML = '<span class="spinner"></span>Enviando a Claude...';
+      setLoading(true);
+      aiPanel.style.display = "none";
+
+      try {
+        const model = form.model.value;
+        const mode = lastMode || form.mode.value;
+        const response = await fetch("/api/send-to-ai", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt, model, mode })
+        });
+        if (!response.ok) {
+          let detail = "Error al llamar a Claude.";
+          try { const d = await response.json(); detail = d.detail || detail; } catch (_) {}
+          throw new Error(detail);
+        }
+        const data = await response.json();
+        aiBody.textContent = data.response || "";
+        aiMeta.textContent = fmtTokens(data.usage) + (data.model ? "  |  " + data.model : "");
+        aiPanel.style.display = "block";
+        aiPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+        statusEl.className = "status done";
+        statusEl.textContent = "Análisis completo.";
+      } catch (error) {
+        statusEl.className = "status error";
+        statusEl.textContent = error.message;
+      } finally { setLoading(false); }
     });
 
     copyBtn.addEventListener("click", async () => {
@@ -741,3 +860,35 @@ async def prompt_text(request: Request) -> JSONResponse:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     return JSONResponse({"prompt": result.prompt})
+
+
+@app.post("/api/send-to-ai")
+async def send_to_ai_endpoint(request: Request) -> JSONResponse:
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            raise ValueError("JSON object body is required")
+
+        prompt = str(payload.get("prompt", "")).strip()
+        if not prompt:
+            raise ValueError("prompt is required")
+
+        model = str(payload.get("model", "claude-sonnet-4-6")).strip() or "claude-sonnet-4-6"
+        mode = str(payload.get("mode", "mindset")).strip() or "mindset"
+
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key or api_key.startswith("sk-ant-..."):
+            raise ValueError(
+                "ANTHROPIC_API_KEY no configurado. "
+                "Agrega tu key en AI_trader/.env → ANTHROPIC_API_KEY=sk-ant-..."
+            )
+
+        from pineforge_ai.prompt_builder import call_claude_raw
+        result = call_claude_raw(prompt=prompt, api_key=api_key, model=model, mode=mode)
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    return JSONResponse(result)

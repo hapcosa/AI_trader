@@ -861,3 +861,47 @@ def send_to_ai(
             "cache_read_input_tokens":     getattr(usage, "cache_read_input_tokens", None),
         }
     return data
+
+
+def call_claude_raw(
+    prompt: str,
+    api_key: str | None = None,
+    model: str = "claude-sonnet-4-6",
+    max_tokens: int = 8096,
+    mode: str = "mindset",
+) -> dict:
+    """Call Claude API and return raw text response (no JSON parsing)."""
+    try:
+        import anthropic
+    except ImportError as e:
+        raise ImportError("Install with: pip install anthropic") from e
+
+    if api_key is None:
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY not set in environment or .env")
+
+    sys_text = SYSTEM_PROMPT_MINDSET if mode == "mindset" else SYSTEM_PROMPT
+
+    client = anthropic.Anthropic(api_key=api_key)
+    resp = client.messages.create(
+        model=model,
+        max_tokens=max_tokens,
+        system=[{"type": "text", "text": sys_text, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    text_parts = [b.text for b in resp.content if getattr(b, "type", "") == "text"]
+    response_text = "\n".join(text_parts).strip()
+
+    usage = getattr(resp, "usage", None)
+    usage_dict = {}
+    if usage is not None:
+        usage_dict = {
+            "input_tokens":                getattr(usage, "input_tokens", 0),
+            "output_tokens":               getattr(usage, "output_tokens", 0),
+            "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", 0),
+            "cache_read_input_tokens":     getattr(usage, "cache_read_input_tokens", 0),
+        }
+
+    return {"response": response_text, "model": model, "usage": usage_dict}
