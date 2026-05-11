@@ -290,6 +290,78 @@ INDEX_HTML = """
       stroke-dasharray: 4 3;
       animation: dash-flow 8s linear infinite;
     }
+    .music-console {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px;
+      background: rgba(4,8,16,0.55);
+      border: 1px solid rgba(0,229,255,0.15);
+      border-radius: 3px;
+    }
+    .music-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+      min-height: 38px;
+      padding: 0 10px;
+      border: 1px solid rgba(0,229,255,0.30);
+      border-radius: 3px;
+      background: rgba(0,229,255,0.06);
+      color: var(--muted-2);
+      font-family: "Share Tech Mono", monospace;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+    .music-toggle:hover,
+    .music-toggle.is-on {
+      border-color: var(--accent);
+      color: var(--accent-strong);
+      background: rgba(0,229,255,0.12);
+      box-shadow: 0 0 14px rgba(0,229,255,0.25), inset 0 0 14px rgba(0,229,255,0.12);
+    }
+    .music-toggle .music-led {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      box-shadow: none;
+      flex: 0 0 8px;
+    }
+    .music-toggle.is-on .music-led {
+      background: var(--ok);
+      box-shadow: 0 0 10px var(--ok);
+      animation: pulse-dot 1.4s ease-in-out infinite;
+    }
+    .music-meter {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 3px;
+      height: 18px;
+      align-items: end;
+    }
+    .music-meter i {
+      display: block;
+      height: 25%;
+      background: linear-gradient(180deg, var(--accent), var(--accent-2));
+      opacity: 0.35;
+      box-shadow: 0 0 8px rgba(0,229,255,0.35);
+      animation: meter-idle 1.4s ease-in-out infinite;
+      animation-play-state: paused;
+    }
+    .music-console.is-on .music-meter i { animation-play-state: running; }
+    .music-meter i:nth-child(2n) { animation-duration: 1.1s; }
+    .music-meter i:nth-child(3n) { animation-duration: 1.7s; }
+    @keyframes meter-idle {
+      0%, 100% { height: 25%; opacity: 0.3; }
+      50% { height: 100%; opacity: 0.9; }
+    }
     .stat-grid {
       display: flex; flex-direction: column;
       border-top: 1px solid rgba(0,229,255,0.14);
@@ -1107,7 +1179,7 @@ INDEX_HTML = """
       <div class="avatar-wrap" aria-hidden="true">
         <span class="corner tl"></span><span class="corner tr"></span>
         <span class="corner bl"></span><span class="corner br"></span>
-        <img class="avatar-gif" src="/static/jesus-cyber-dance.gif" alt="">
+        <img class="avatar-gif" src="/static/jesus.gif" alt="">
       </div>
 
       <div class="nucleo">
@@ -1116,6 +1188,17 @@ INDEX_HTML = """
           <polyline class="line2" points="0,28 12,24 24,30 36,18 48,22 60,12 72,20 84,10 96,18 108,8 120,16 132,6 144,14 156,4 168,12 180,8 192,16 200,10"/>
           <polyline class="line" points="0,32 12,30 24,34 36,26 48,30 60,22 72,28 84,18 96,24 108,16 120,22 132,14 144,20 156,12 168,18 180,14 192,22 200,16"/>
         </svg>
+      </div>
+
+      <div id="music-console" class="music-console">
+        <button id="music-toggle" class="music-toggle" type="button" aria-pressed="false">
+          <span class="music-led" aria-hidden="true"></span>
+          <span>MÚSICA 24/7</span>
+          <strong id="music-state">OFF</strong>
+        </button>
+        <div class="music-meter" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
       </div>
 
       <div class="stat-grid">
@@ -1301,9 +1384,119 @@ INDEX_HTML = """
     const statModel = document.querySelector("#stat-model");
     const statLatency = document.querySelector("#stat-latency");
     const statAnalysis = document.querySelector("#stat-analysis");
+    const musicConsole = document.querySelector("#music-console");
+    const musicToggle = document.querySelector("#music-toggle");
+    const musicState = document.querySelector("#music-state");
 
     let lastPrompt = null;
     let lastMode = null;
+    let audioCtx = null;
+    let musicGain = null;
+    let musicDelay = null;
+    let musicTimer = null;
+    let musicStep = 0;
+    const MUSIC_STORAGE_KEY = "ai_trader_music_enabled";
+    const musicScale = [110, 130.81, 146.83, 164.81, 196, 220, 261.63, 293.66, 329.63];
+
+    function setMusicUi(isOn) {
+      if (!musicConsole || !musicToggle || !musicState) return;
+      musicConsole.classList.toggle("is-on", isOn);
+      musicToggle.classList.toggle("is-on", isOn);
+      musicToggle.setAttribute("aria-pressed", isOn ? "true" : "false");
+      musicState.textContent = isOn ? "ON" : "OFF";
+    }
+
+    function playTone(freq, start, duration, gain, type = "sine") {
+      const osc = audioCtx.createOscillator();
+      const amp = audioCtx.createGain();
+      const filter = audioCtx.createBiquadFilter();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, start);
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(900, start);
+      filter.frequency.exponentialRampToValueAtTime(220, start + duration);
+      amp.gain.setValueAtTime(0.0001, start);
+      amp.gain.exponentialRampToValueAtTime(gain, start + 0.08);
+      amp.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+      osc.connect(filter);
+      filter.connect(amp);
+      amp.connect(musicDelay);
+      amp.connect(musicGain);
+      osc.start(start);
+      osc.stop(start + duration + 0.05);
+    }
+
+    function scheduleMusicStep() {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+      const root = musicScale[musicStep % musicScale.length];
+      playTone(root, now, 1.8, 0.035, "triangle");
+      if (musicStep % 2 === 0) playTone(root * 2, now + 0.15, 1.25, 0.018, "sine");
+      if (musicStep % 4 === 1) playTone(musicScale[(musicStep + 3) % musicScale.length] * 2, now + 0.45, 0.9, 0.014, "sine");
+      if (musicStep % 8 === 0) playTone(55, now, 2.2, 0.022, "sawtooth");
+      musicStep += 1;
+    }
+
+    async function startMusic() {
+      if (!musicToggle) return;
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        musicGain = audioCtx.createGain();
+        musicDelay = audioCtx.createDelay(2.0);
+        const feedback = audioCtx.createGain();
+        const delayFilter = audioCtx.createBiquadFilter();
+        musicGain.gain.value = 0.18;
+        musicDelay.delayTime.value = 0.38;
+        feedback.gain.value = 0.28;
+        delayFilter.type = "lowpass";
+        delayFilter.frequency.value = 1200;
+        musicDelay.connect(delayFilter);
+        delayFilter.connect(feedback);
+        feedback.connect(musicDelay);
+        musicDelay.connect(musicGain);
+        musicGain.connect(audioCtx.destination);
+      }
+      await audioCtx.resume();
+      if (!musicTimer) {
+        scheduleMusicStep();
+        musicTimer = window.setInterval(scheduleMusicStep, 700);
+      }
+      setMusicUi(true);
+      try { localStorage.setItem(MUSIC_STORAGE_KEY, "1"); } catch (_) {}
+    }
+
+    function stopMusic() {
+      if (musicTimer) {
+        window.clearInterval(musicTimer);
+        musicTimer = null;
+      }
+      if (musicGain && audioCtx) {
+        const now = audioCtx.currentTime;
+        musicGain.gain.cancelScheduledValues(now);
+        musicGain.gain.setTargetAtTime(0.0001, now, 0.08);
+      }
+      setMusicUi(false);
+      try { localStorage.setItem(MUSIC_STORAGE_KEY, "0"); } catch (_) {}
+    }
+
+    if (musicToggle) {
+      musicToggle.addEventListener("click", async () => {
+        const isOn = musicToggle.getAttribute("aria-pressed") === "true";
+        if (isOn) {
+          stopMusic();
+          return;
+        }
+        await startMusic();
+        if (musicGain && audioCtx) {
+          musicGain.gain.setTargetAtTime(0.18, audioCtx.currentTime, 0.12);
+        }
+      });
+      try {
+        if (localStorage.getItem(MUSIC_STORAGE_KEY) === "1") {
+          musicState.textContent = "READY";
+        }
+      } catch (_) {}
+    }
 
     function updateModelStat() {
       const sel = form.model;
