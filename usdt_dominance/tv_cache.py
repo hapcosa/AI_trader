@@ -1,10 +1,13 @@
-"""SQLite cache of TV OHLCV per (symbol, timeframe) — on-demand refresh.
+"""SQLite cache of OHLCV per (symbol, timeframe) — multi-source, on-demand refresh.
 
-Strategy: prompt-build calls `refresh_all(symbol)` which checks last_ts per
-TF and pulls only what's missing from TradingView. New closes upsert into
-the cache. No background process — pull-based, lazy.
+Source is encoded as the prefix of the cached symbol key:
+    "CRYPTOCAP:USDT.D"   → TradingView (default for any unknown prefix)
+    "BINANCE:BTCUSDT"    → TradingView via BINANCE exchange feed
+    "OANDA:XAUUSD"       → TradingView via OANDA
+    "BITGET:BTCUSDT"     → ccxt Bitget futures (USDT-perp)
 
-DB: AI_trader/data/usdt_dominance_tfs.db
+Bare keys without a colon are migrated to ``CRYPTOCAP:`` on first DB open
+(legacy "USDT.D" data preserved).
 """
 from __future__ import annotations
 
@@ -48,6 +51,24 @@ _INTERVAL_NAME: dict[str, str] = {
     "1M": "in_monthly",
 }
 
+# ccxt Bitget timeframe codes (no remap needed for these labels).
+_CCXT_TF: dict[str, str] = {
+    "1h": "1h", "4h": "4h", "1d": "1d", "1w": "1w", "1M": "1M",
+}
+
+
+def _normalize_symbol(symbol: str) -> str:
+    """Map bare legacy tickers to FQ EXCHANGE:SYMBOL keys."""
+    return symbol if ":" in symbol else f"CRYPTOCAP:{symbol}"
+
+
+def _split_key(symbol_key: str) -> tuple[str, str]:
+    """Return (exchange_or_source, ticker)."""
+    if ":" in symbol_key:
+        a, b = symbol_key.split(":", 1)
+        return a.upper(), b
+    return "CRYPTOCAP", symbol_key
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS bars (
@@ -71,7 +92,15 @@ def open_db(path: Path = DB_PATH) -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
     conn.executescript(_SCHEMA)
-    conn.commit()
+    # One-time migration: bare tickers → CRYPTOCAP-prefixed FQ keys.
+    try:
+        conn.execute(
+            "UPDATE bars SET symbol = 'CRYPTOCAP:' || symbol "
+            "WHERE instr(symbol, ':') = 0"
+        )
+        conn.commit()
+    except Exception:
+        pass
     return conn
 
 
@@ -133,6 +162,7 @@ def get_ohlcv(
     conn: sqlite3.Connection | None = None,
 ) -> pd.DataFrame:
     """Return OHLCV DataFrame for (symbol, tf) ordered oldest→newest, UTC index."""
+    symbol = _normalize_symbol(symbol)
     own = conn is None
     if own:
         conn = open_db()
@@ -158,8 +188,8 @@ def get_ohlcv(
             conn.close()
 
 
-def _fetch_tv(symbol: str, tf: str, n_bars: int) -> pd.DataFrame:
-    """Pull n_bars from TradingView for (symbol, tf). Anonymous OK for public symbols."""
+def _fetch_tv(exchange: str, symbol: str, tf: str, n_bars: int) -> pd.DataFrame:
+    """Pull n_bars from TradingView for (exchange:symbol, tf)."""
     import os
     try:
         from tvDatafeed import TvDatafeed, Interval
@@ -168,19 +198,12 @@ def _fetch_tv(symbol: str, tf: str, n_bars: int) -> pd.DataFrame:
         return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
 
     interval = getattr(Interval, _INTERVAL_NAME[tf])
-    exchange = "CRYPTOCAP" if symbol.upper().endswith(".D") or symbol.upper().startswith("TOTAL") else "CRYPTOCAP"
     u, p = os.environ.get("TV_USERNAME"), os.environ.get("TV_PASSWORD")
-
     try:
         tv = TvDatafeed(username=u, password=p) if (u and p) else TvDatafeed()
-        df = tv.get_hist(
-            symbol=symbol,
-            exchange=exchange,
-            interval=interval,
-            n_bars=n_bars,
-        )
+        df = tv.get_hist(symbol=symbol, exchange=exchange, interval=interval, n_bars=n_bars)
     except Exception as e:
-        log.warning("TV fetch failed sym=%s tf=%s err=%s", symbol, tf, e)
+        log.warning("TV fetch failed ex=%s sym=%s tf=%s err=%s", exchange, symbol, tf, e)
         return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
 
     if df is None or len(df) == 0:
@@ -195,13 +218,54 @@ def _fetch_tv(symbol: str, tf: str, n_bars: int) -> pd.DataFrame:
     return df.sort_index()
 
 
+def _fetch_bitget(symbol: str, tf: str, n_bars: int) -> pd.DataFrame:
+    """Pull n_bars from Bitget USDT-perp via ccxt. `symbol` like 'BTCUSDT'."""
+    try:
+        import ccxt
+    except Exception as e:
+        log.error("ccxt not importable: %s", e)
+        return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+
+    tf_code = _CCXT_TF.get(tf)
+    if not tf_code:
+        return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+
+    # Map plain ticker → unified ccxt symbol for USDT-margined perp swap.
+    base = symbol.replace("USDT", "").replace("/", "")
+    unified = f"{base}/USDT:USDT"
+
+    try:
+        ex = ccxt.bitget({"options": {"defaultType": "swap"}})
+        ex.options["defaultType"] = "swap"
+        candles = ex.fetch_ohlcv(unified, timeframe=tf_code, limit=n_bars)
+    except Exception as e:
+        log.warning("Bitget fetch failed sym=%s tf=%s err=%s", symbol, tf, e)
+        return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+
+    if not candles:
+        return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+
+    df = pd.DataFrame(candles, columns=["ts_ms", "open", "high", "low", "close", "volume"])
+    df.index = pd.to_datetime(df["ts_ms"], unit="ms", utc=True)
+    df = df.drop(columns=["ts_ms"]).sort_index()
+    return df
+
+
+def _fetch(symbol_key: str, tf: str, n_bars: int) -> pd.DataFrame:
+    src, ticker = _split_key(symbol_key)
+    if src == "BITGET":
+        return _fetch_bitget(ticker, tf, n_bars)
+    return _fetch_tv(src, ticker, tf, n_bars)
+
+
 def refresh(
     symbol: str,
     tf: str,
     conn: sqlite3.Connection | None = None,
     force_full: bool = False,
 ) -> int:
-    """Pull missing bars from TV and upsert into cache. Returns bars written."""
+    """Pull missing bars from the right source and upsert into cache."""
+    symbol = _normalize_symbol(symbol)
     own = conn is None
     if own:
         conn = open_db()
@@ -214,16 +278,15 @@ def refresh(
         if force_full or last_ts is None:
             n_bars = target
         else:
-            # Bars elapsed since last cached close — ask for a safety margin.
             elapsed = max(0, (now_ts - last_ts) // tf_sec)
             if elapsed == 0:
-                n_bars = 2  # warm pull to catch the just-closed bar
+                n_bars = 2
             else:
                 n_bars = min(target, max(5, elapsed + 5))
 
-        df = _fetch_tv(symbol, tf, n_bars)
+        df = _fetch(symbol, tf, n_bars)
         wrote = upsert_df(conn, symbol, tf, df)
-        log.info("tv_cache refresh sym=%s tf=%s wrote=%d last_ts=%s", symbol, tf, wrote, last_ts)
+        log.info("cache refresh sym=%s tf=%s wrote=%d last_ts=%s", symbol, tf, wrote, last_ts)
         return wrote
     finally:
         if own:
@@ -234,7 +297,7 @@ def refresh_all(
     symbol: str = "USDT.D",
     tfs: list[str] | None = None,
 ) -> dict[str, int]:
-    """Refresh every cached TF for `symbol`. Returns {tf: bars_written}."""
+    """Refresh every cached TF for `symbol` (FQ EXCHANGE:SYMBOL or legacy bare)."""
     tfs = tfs or list(TARGET_BARS.keys())
     conn = open_db()
     out: dict[str, int] = {}
@@ -252,6 +315,7 @@ def get_dfs(
 ) -> dict[str, pd.DataFrame]:
     """Return {tf: DataFrame} ready to feed wavetrend/luxalgo/smc."""
     tfs = tfs or list(TARGET_BARS.keys())
+    symbol = _normalize_symbol(symbol)
     conn = open_db()
     out: dict[str, pd.DataFrame] = {}
     try:

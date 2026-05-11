@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 import aiohttp
 
-from .builder import build_digest_body, DOMINANCE_SYMBOLS
+from .builder import build_digest_body
 
 log = logging.getLogger(__name__)
 
@@ -84,13 +84,11 @@ class DominanceDigestScheduler:
         self,
         notifier_url: str | None = None,
         token: str | None = None,
-        symbols: tuple[str, ...] = DOMINANCE_SYMBOLS,
         tfs_4h: tuple[str, ...] = ("1h", "4h"),
         tfs_daily: tuple[str, ...] = ("1d",),
     ) -> None:
         self.notifier_url = notifier_url or _env("NOTIFIER_URL", "http://notifier:8090")
         self.token = token or _env("INTERNAL_INGEST_TOKEN")
-        self.symbols = symbols
         self.tfs_4h = list(tfs_4h)
         self.tfs_daily = list(tfs_daily)
         self._task: asyncio.Task | None = None
@@ -103,8 +101,8 @@ class DominanceDigestScheduler:
         self._session = aiohttp.ClientSession()
         self._task = asyncio.create_task(self._loop(), name="dominance_digest")
         log.info(
-            "dominance_digest_started url=%s symbols=%s tfs_4h=%s tfs_daily=%s",
-            self.notifier_url, list(self.symbols), self.tfs_4h, self.tfs_daily,
+            "dominance_digest_started url=%s tfs_4h=%s tfs_daily=%s",
+            self.notifier_url, self.tfs_4h, self.tfs_daily,
         )
 
     async def stop(self) -> None:
@@ -144,7 +142,6 @@ class DominanceDigestScheduler:
             body = await asyncio.to_thread(
                 build_digest_body,
                 tfs=self.tfs_4h,
-                symbols=self.symbols,
                 refresh=True,
             )
             await _post_digest(self._session, self.notifier_url, self.token,
@@ -159,7 +156,6 @@ class DominanceDigestScheduler:
                 body_d = await asyncio.to_thread(
                     build_digest_body,
                     tfs=self.tfs_daily,
-                    symbols=self.symbols,
                     refresh=True,
                 )
                 await _post_digest(self._session, self.notifier_url, self.token,
@@ -174,7 +170,7 @@ class DominanceDigestScheduler:
             self._session = aiohttp.ClientSession()
         tfs = self.tfs_4h if kind.upper() == "4H" else self.tfs_daily
         body = await asyncio.to_thread(
-            build_digest_body, tfs=tfs, symbols=self.symbols, refresh=True,
+            build_digest_body, tfs=tfs, refresh=True,
         )
         return await _post_digest(self._session, self.notifier_url, self.token,
                                   kind.upper(), body)
