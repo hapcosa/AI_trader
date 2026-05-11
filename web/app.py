@@ -1167,6 +1167,135 @@ INDEX_HTML = """
       .field, .field.mid { grid-column: span 12; }
       .actions { grid-template-columns: 1fr; }
     }
+    /* ---------- TUTORIAL MODAL ---------- */
+    .btn-help {
+      padding: 6px 14px;
+      font-size: 10px;
+      font-family: "Orbitron", monospace;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      color: var(--accent);
+      background: rgba(0,229,255,0.07);
+      border: 1px solid rgba(0,229,255,0.35);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .btn-help:hover { background: rgba(0,229,255,0.16); border-color: var(--accent); color: var(--accent-strong); }
+    .tut-modal {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .tut-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.88); cursor: pointer; }
+    .tut-panel {
+      position: relative; z-index: 1;
+      width: min(860px, 94vw); max-height: 88vh;
+      display: flex; flex-direction: column;
+      background: linear-gradient(160deg, #0a1627 0%, #050e1c 100%);
+      border: 1px solid var(--accent);
+      box-shadow: 0 0 40px rgba(0,229,255,0.14), inset 0 0 60px rgba(0,0,0,0.4);
+    }
+    .tut-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 22px 12px; border-bottom: 1px solid var(--line); flex-shrink: 0;
+    }
+    .tut-title {
+      font-family: "Orbitron", monospace; font-size: 12px; font-weight: 700;
+      letter-spacing: 0.2em; color: var(--accent-strong); text-transform: uppercase;
+    }
+    .tut-close {
+      background: none; border: 1px solid rgba(0,229,255,0.3); color: var(--muted-2);
+      font-size: 14px; width: 30px; height: 30px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+    }
+    .tut-close:hover { border-color: var(--bad); color: var(--bad); }
+    .tut-tabs {
+      display: flex; border-bottom: 1px solid var(--line); flex-shrink: 0; overflow-x: auto;
+    }
+    .tut-tab {
+      padding: 11px 16px;
+      font-family: "Orbitron", monospace; font-size: 10px; font-weight: 700;
+      letter-spacing: 0.13em; text-transform: uppercase;
+      color: var(--muted); background: none; border: none;
+      border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; transition: all 0.15s;
+    }
+    .tut-tab:hover { color: var(--ink); }
+    .tut-tab.active { color: var(--accent-strong); border-bottom-color: var(--accent); background: rgba(0,229,255,0.06); }
+    .tut-body {
+      padding: 24px 26px; overflow-y: auto; flex: 1;
+      color: var(--ink); font-family: "Rajdhani", sans-serif; font-size: 15px; line-height: 1.65;
+    }
+    .tut-page { display: none; }
+    .tut-page.active { display: block; }
+    .tut-body h2 {
+      font-family: "Orbitron", monospace; font-size: 12px; font-weight: 700;
+      letter-spacing: 0.18em; color: var(--accent); text-transform: uppercase; margin: 0 0 14px;
+    }
+    .tut-body h3 {
+      font-family: "Orbitron", monospace; font-size: 10px; font-weight: 700;
+      letter-spacing: 0.14em; color: var(--accent-2); text-transform: uppercase; margin: 22px 0 8px;
+    }
+    .tut-steps { list-style: none; padding: 0; margin: 0 0 16px; display: flex; flex-direction: column; gap: 10px; }
+    .tut-steps li { display: flex; gap: 14px; align-items: flex-start; }
+    .tut-step-n {
+      flex-shrink: 0; width: 26px; height: 26px;
+      border: 1px solid var(--accent); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: "Orbitron", monospace; font-size: 11px; font-weight: 700;
+      color: var(--accent); background: rgba(0,229,255,0.08);
+    }
+    .tut-highlight {
+      background: rgba(0,229,255,0.05); border-left: 3px solid var(--accent);
+      padding: 12px 16px; margin: 12px 0; font-size: 14px; color: var(--muted-2);
+    }
+    .tut-highlight strong { color: var(--ink); }
+    .tut-warn {
+      background: rgba(255,200,87,0.06); border-left: 3px solid var(--warn);
+      padding: 12px 16px; margin: 12px 0; font-size: 14px; color: var(--warn);
+    }
+    .tut-table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 14px; }
+    .tut-table th {
+      text-align: left; padding: 8px 12px;
+      font-family: "Orbitron", monospace; font-size: 9px; letter-spacing: 0.15em;
+      color: var(--muted); border-bottom: 1px solid var(--line); text-transform: uppercase;
+    }
+    .tut-table td { padding: 9px 12px; border-bottom: 1px solid rgba(0,229,255,0.07); color: var(--ink); vertical-align: top; }
+    .tut-table td:first-child { font-family: "Share Tech Mono", monospace; font-size: 13px; color: var(--accent-strong); white-space: nowrap; }
+    .tut-table tr:hover td { background: rgba(0,229,255,0.03); }
+    .tut-code {
+      background: rgba(0,0,0,0.4); border: 1px solid rgba(0,229,255,0.2);
+      padding: 12px 16px; font-family: "Share Tech Mono", monospace; font-size: 13px;
+      color: var(--accent-strong); margin: 10px 0; word-break: break-all;
+    }
+    .tut-faq { display: flex; flex-direction: column; gap: 18px; }
+    .tut-faq-q { font-weight: 700; color: var(--accent-strong); margin-bottom: 4px; font-size: 15px; }
+    .tut-faq-a { color: var(--muted-2); font-size: 14px; }
+    .tut-tag {
+      display: inline-block; background: rgba(0,229,255,0.09);
+      border: 1px solid rgba(0,229,255,0.28); color: var(--accent);
+      font-family: "Share Tech Mono", monospace; font-size: 12px; padding: 1px 8px; margin: 2px;
+    }
+    .tut-flow {
+      display: flex; gap: 0; margin: 20px 0; flex-wrap: wrap;
+    }
+    .tut-flow-step {
+      flex: 1; min-width: 150px;
+      background: rgba(0,229,255,0.04); border: 1px solid rgba(0,229,255,0.18);
+      padding: 18px 12px; text-align: center; position: relative;
+    }
+    .tut-flow-step:not(:last-child)::after {
+      content: "→"; position: absolute; right: -11px; top: 50%; transform: translateY(-50%);
+      color: var(--accent); font-size: 18px; z-index: 2;
+    }
+    .tut-flow-n { font-family: "Orbitron", monospace; font-size: 26px; font-weight: 900; color: var(--accent); display: block; margin-bottom: 6px; }
+    .tut-flow-label { font-size: 13px; color: var(--muted-2); }
+    @media (max-width: 600px) {
+      .tut-panel { width: 98vw; max-height: 95vh; }
+      .tut-body { padding: 16px 14px; }
+      .tut-tab { padding: 10px 10px; font-size: 9px; }
+      .tut-flow { flex-direction: column; }
+      .tut-flow-step:not(:last-child)::after { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -1196,6 +1325,7 @@ INDEX_HTML = """
           <span>MÚSICA 24/7</span>
           <strong id="music-state">OFF</strong>
         </button>
+        <audio id="music-audio" src="/static/music.mp3" loop preload="auto"></audio>
         <div class="music-meter" aria-hidden="true">
           <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
         </div>
@@ -1224,6 +1354,7 @@ INDEX_HTML = """
         <div class="status-pills">
           <span class="pill"><i class="dot"></i>Sistema Online</span>
           <span class="pill"><i class="dot"></i>Data Feed: En Vivo</span>
+          <button id="help-btn" class="btn-help" type="button" title="Abrir tutorial de uso">? AYUDA</button>
         </div>
       </header>
 
@@ -1387,16 +1518,11 @@ INDEX_HTML = """
     const musicConsole = document.querySelector("#music-console");
     const musicToggle = document.querySelector("#music-toggle");
     const musicState = document.querySelector("#music-state");
+    const musicAudio = document.querySelector("#music-audio");
 
     let lastPrompt = null;
     let lastMode = null;
-    let audioCtx = null;
-    let musicGain = null;
-    let musicDelay = null;
-    let musicTimer = null;
-    let musicStep = 0;
     const MUSIC_STORAGE_KEY = "ai_trader_music_enabled";
-    const musicScale = [110, 130.81, 146.83, 164.81, 196, 220, 261.63, 293.66, 329.63];
 
     function setMusicUi(isOn) {
       if (!musicConsole || !musicToggle || !musicState) return;
@@ -1406,74 +1532,23 @@ INDEX_HTML = """
       musicState.textContent = isOn ? "ON" : "OFF";
     }
 
-    function playTone(freq, start, duration, gain, type = "sine") {
-      const osc = audioCtx.createOscillator();
-      const amp = audioCtx.createGain();
-      const filter = audioCtx.createBiquadFilter();
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, start);
-      filter.type = "lowpass";
-      filter.frequency.setValueAtTime(900, start);
-      filter.frequency.exponentialRampToValueAtTime(220, start + duration);
-      amp.gain.setValueAtTime(0.0001, start);
-      amp.gain.exponentialRampToValueAtTime(gain, start + 0.08);
-      amp.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-      osc.connect(filter);
-      filter.connect(amp);
-      amp.connect(musicDelay);
-      amp.connect(musicGain);
-      osc.start(start);
-      osc.stop(start + duration + 0.05);
-    }
-
-    function scheduleMusicStep() {
-      if (!audioCtx) return;
-      const now = audioCtx.currentTime;
-      const root = musicScale[musicStep % musicScale.length];
-      playTone(root, now, 1.8, 0.035, "triangle");
-      if (musicStep % 2 === 0) playTone(root * 2, now + 0.15, 1.25, 0.018, "sine");
-      if (musicStep % 4 === 1) playTone(musicScale[(musicStep + 3) % musicScale.length] * 2, now + 0.45, 0.9, 0.014, "sine");
-      if (musicStep % 8 === 0) playTone(55, now, 2.2, 0.022, "sawtooth");
-      musicStep += 1;
-    }
-
     async function startMusic() {
-      if (!musicToggle) return;
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        musicGain = audioCtx.createGain();
-        musicDelay = audioCtx.createDelay(2.0);
-        const feedback = audioCtx.createGain();
-        const delayFilter = audioCtx.createBiquadFilter();
-        musicGain.gain.value = 0.18;
-        musicDelay.delayTime.value = 0.38;
-        feedback.gain.value = 0.28;
-        delayFilter.type = "lowpass";
-        delayFilter.frequency.value = 1200;
-        musicDelay.connect(delayFilter);
-        delayFilter.connect(feedback);
-        feedback.connect(musicDelay);
-        musicDelay.connect(musicGain);
-        musicGain.connect(audioCtx.destination);
+      if (!musicAudio) return;
+      musicAudio.loop = true;
+      musicAudio.volume = 0.42;
+      try {
+        await musicAudio.play();
+        setMusicUi(true);
+        try { localStorage.setItem(MUSIC_STORAGE_KEY, "1"); } catch (_) {}
+      } catch (_) {
+        setMusicUi(false);
+        showToast("Pon archivo <b>music.mp3</b> en <b>AI_trader/web/static/</b> y pulsa Música 24/7.", "error", 7000);
       }
-      await audioCtx.resume();
-      if (!musicTimer) {
-        scheduleMusicStep();
-        musicTimer = window.setInterval(scheduleMusicStep, 700);
-      }
-      setMusicUi(true);
-      try { localStorage.setItem(MUSIC_STORAGE_KEY, "1"); } catch (_) {}
     }
 
     function stopMusic() {
-      if (musicTimer) {
-        window.clearInterval(musicTimer);
-        musicTimer = null;
-      }
-      if (musicGain && audioCtx) {
-        const now = audioCtx.currentTime;
-        musicGain.gain.cancelScheduledValues(now);
-        musicGain.gain.setTargetAtTime(0.0001, now, 0.08);
+      if (musicAudio) {
+        musicAudio.pause();
       }
       setMusicUi(false);
       try { localStorage.setItem(MUSIC_STORAGE_KEY, "0"); } catch (_) {}
@@ -1487,9 +1562,6 @@ INDEX_HTML = """
           return;
         }
         await startMusic();
-        if (musicGain && audioCtx) {
-          musicGain.gain.setTargetAtTime(0.18, audioCtx.currentTime, 0.12);
-        }
       });
       try {
         if (localStorage.getItem(MUSIC_STORAGE_KEY) === "1") {
@@ -1916,7 +1988,288 @@ INDEX_HTML = """
         setTimeout(() => { copyBtn.textContent = "Copiar"; }, 1800);
       }
     });
+
+    /* ===== TUTORIAL ===== */
+    const tutModal = document.getElementById("tut-modal");
+    const helpBtn  = document.getElementById("help-btn");
+    const tutOverlay = document.getElementById("tut-overlay");
+    const tutCloseBtn = document.getElementById("tut-close");
+    const TUT_KEY = "tut_seen_v1";
+
+    function openTutorial(tab) {
+      tutModal.style.display = "flex";
+      document.body.style.overflow = "hidden";
+      if (tab) switchTutTab(tab);
+    }
+    function closeTutorial() {
+      tutModal.style.display = "none";
+      document.body.style.overflow = "";
+      try { localStorage.setItem(TUT_KEY, "1"); } catch(_) {}
+    }
+    function switchTutTab(name) {
+      document.querySelectorAll(".tut-tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+      document.querySelectorAll(".tut-page").forEach(p => p.classList.toggle("active", p.id === "tut-" + name));
+    }
+
+    helpBtn.addEventListener("click", () => openTutorial("inicio"));
+    tutOverlay.addEventListener("click", closeTutorial);
+    tutCloseBtn.addEventListener("click", closeTutorial);
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && tutModal.style.display === "flex") closeTutorial(); });
+    document.querySelectorAll(".tut-tab").forEach(t => t.addEventListener("click", () => switchTutTab(t.dataset.tab)));
+
+    try {
+      if (!localStorage.getItem(TUT_KEY)) openTutorial("inicio");
+    } catch(_) {}
   </script>
+
+  <!-- TUTORIAL MODAL -->
+  <div id="tut-modal" class="tut-modal" style="display:none" role="dialog" aria-modal="true" aria-label="Tutorial de uso">
+    <div id="tut-overlay" class="tut-overlay"></div>
+    <div class="tut-panel">
+      <div class="tut-header">
+        <span class="tut-title">// Manual de Usuario — AI Trader</span>
+        <button id="tut-close" class="tut-close" type="button" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="tut-tabs" role="tablist">
+        <button class="tut-tab active" data-tab="inicio" role="tab">Inicio</button>
+        <button class="tut-tab" data-tab="campos" role="tab">Campos</button>
+        <button class="tut-tab" data-tab="indicadores" role="tab">Indicadores</button>
+        <button class="tut-tab" data-tab="apikey" role="tab">API Key</button>
+        <button class="tut-tab" data-tab="faq" role="tab">FAQ</button>
+      </div>
+
+      <div class="tut-body">
+
+        <!-- TAB: INICIO -->
+        <div id="tut-inicio" class="tut-page active">
+          <h2>¿Qué es AI Trader?</h2>
+          <p>AI Trader es una terminal de análisis de mercados. Descarga datos de precios en tiempo real, calcula indicadores técnicos avanzados y envía un análisis completo a Claude AI, que responde con zonas clave, setups de entrada y niveles de riesgo.</p>
+          <div class="tut-highlight">
+            <strong>AI Trader analiza — no opera.</strong> No ejecuta órdenes ni mueve dinero. Es una herramienta de análisis para ayudarte a tomar decisiones.
+          </div>
+          <h3>Flujo de 3 pasos</h3>
+          <div class="tut-flow">
+            <div class="tut-flow-step"><span class="tut-flow-n">1</span><span class="tut-flow-label">Escribe el símbolo que quieres analizar</span></div>
+            <div class="tut-flow-step"><span class="tut-flow-n">2</span><span class="tut-flow-label">Selecciona timeframes e indicadores</span></div>
+            <div class="tut-flow-step"><span class="tut-flow-n">3</span><span class="tut-flow-label">Haz clic en "Analizar con Claude"</span></div>
+          </div>
+          <h3>Qué necesitas</h3>
+          <ul class="tut-steps">
+            <li><div class="tut-step-n">✓</div><div>Conexión a internet (para descargar datos del mercado)</div></li>
+            <li><div class="tut-step-n">✓</div><div>Una clave API de Anthropic para que Claude AI responda — ver pestaña <strong>API Key</strong></div></li>
+          </ul>
+          <h3>Activos soportados</h3>
+          <p>Puedes analizar cualquiera de estos tipos de activos:</p>
+          <p>
+            <span class="tut-tag">BTC/USDT</span><span class="tut-tag">ETH/USDT</span><span class="tut-tag">SOL/USDT</span>
+            <span style="color:var(--muted-2);font-size:13px;margin-left:6px;">criptomonedas</span>
+          </p>
+          <p>
+            <span class="tut-tag">AAPL</span><span class="tut-tag">TSLA</span><span class="tut-tag">MSFT</span>
+            <span style="color:var(--muted-2);font-size:13px;margin-left:6px;">acciones</span>
+          </p>
+          <p>
+            <span class="tut-tag">EURUSD=X</span><span class="tut-tag">GBPUSD=X</span>
+            <span style="color:var(--muted-2);font-size:13px;margin-left:6px;">forex</span>
+          </p>
+          <p>
+            <span class="tut-tag">^SPX</span><span class="tut-tag">^FTSE</span>
+            <span style="color:var(--muted-2);font-size:13px;margin-left:6px;">índices</span>
+          </p>
+        </div>
+
+        <!-- TAB: CAMPOS -->
+        <div id="tut-campos" class="tut-page">
+          <h2>Guía de campos</h2>
+          <table class="tut-table">
+            <thead><tr><th>Campo</th><th>Qué hace</th><th>Recomendación</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>Símbolo</td>
+                <td>El activo que vas a analizar. Escribe las primeras letras y elige de la lista.</td>
+                <td>BTC/USDT para Bitcoin, AAPL para Apple</td>
+              </tr>
+              <tr>
+                <td>Modo</td>
+                <td><strong>mindset</strong>: análisis de contexto general del mercado.<br><strong>signal</strong>: búsqueda de señales de entrada concretas.</td>
+                <td>Empieza con <strong>mindset</strong></td>
+              </tr>
+              <tr>
+                <td>Fuente</td>
+                <td>De dónde se descargan los datos de precios.</td>
+                <td>Dejar en <strong>auto</strong> — detecta automáticamente</td>
+              </tr>
+              <tr>
+                <td>Exchange</td>
+                <td>Solo relevante para criptomonedas. Elige el exchange del que quieres los datos.</td>
+                <td><strong>Bitget</strong> o Binance para la mayoría de pares</td>
+              </tr>
+              <tr>
+                <td>Timeframes</td>
+                <td>Los marcos temporales que se analizan. Cada vela representa ese período de tiempo (ej: 1h = 1 hora por vela).</td>
+                <td>Activar <strong>1h, 4h, 1d</strong> para un análisis completo</td>
+              </tr>
+              <tr>
+                <td>Velas por TF</td>
+                <td>Cuántas velas históricas se descargan por timeframe.</td>
+                <td>200 es suficiente para la mayoría de casos</td>
+              </tr>
+              <tr>
+                <td>Indicadores</td>
+                <td>Los análisis técnicos que se calculan. Ver pestaña <strong>Indicadores</strong> para detalles.</td>
+                <td>Dejar todos activados</td>
+              </tr>
+              <tr>
+                <td>Modelo Claude</td>
+                <td>El modelo de IA que analiza el mercado.<br><strong>Sonnet</strong>: rápido y equilibrado.<br><strong>Opus</strong>: más profundo pero más lento.</td>
+                <td><strong>Sonnet 4.6</strong> para uso diario</td>
+              </tr>
+              <tr>
+                <td>API Key</td>
+                <td>Tu clave personal de Anthropic. Sin ella, no se puede enviar a Claude AI.</td>
+                <td>Ver pestaña <strong>API Key</strong> para obtenerla</td>
+              </tr>
+              <tr>
+                <td>Contexto de mercado</td>
+                <td>Incluye correlaciones con DXY, S&amp;P500, Bitcoin Dominance, etc.</td>
+                <td>Activado — da más contexto al análisis</td>
+              </tr>
+            </tbody>
+          </table>
+          <h3>Botones de acción</h3>
+          <table class="tut-table">
+            <thead><tr><th>Botón</th><th>Qué hace</th></tr></thead>
+            <tbody>
+              <tr><td>Mostrar Prompt</td><td>Genera y muestra el texto que se le envía a la IA. Útil para revisar los datos antes de enviar.</td></tr>
+              <tr><td>Analizar con Claude</td><td>Envía el análisis completo a Claude y muestra la respuesta con zonas clave, setups y niveles de riesgo.</td></tr>
+              <tr><td>Descargar</td><td>Guarda el prompt generado como archivo de texto en tu computadora.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- TAB: INDICADORES -->
+        <div id="tut-indicadores" class="tut-page">
+          <h2>Indicadores técnicos</h2>
+          <p>Cada indicador mide un aspecto diferente del mercado. Juntos dan una visión completa antes de que Claude AI haga su análisis.</p>
+          <table class="tut-table">
+            <thead><tr><th>Indicador</th><th>Qué detecta</th><th>Útil para</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>WaveTrend</td>
+                <td>Sobrecompra y sobreventa. Mide si el precio está demasiado alto o demasiado bajo en relación a su promedio reciente.</td>
+                <td>Detectar reversiones y agotamiento del movimiento</td>
+              </tr>
+              <tr>
+                <td>LuxAlgo AMO</td>
+                <td>La fuerza y dirección del momentum. Muestra si el movimiento está acelerando o perdiendo fuerza. También detecta divergencias (cuando el precio sube pero la fuerza baja).</td>
+                <td>Confirmar la fortaleza de una tendencia</td>
+              </tr>
+              <tr>
+                <td>SMC Elite</td>
+                <td>Zonas donde los grandes operadores (instituciones) han colocado órdenes. Detecta: bloques de órdenes (OB), vacíos de precio (FVG), rupturas de estructura (BOS) y cambios de carácter (CHoCH).</td>
+                <td>Encontrar zonas de soporte/resistencia institucionales</td>
+              </tr>
+              <tr>
+                <td>WAE</td>
+                <td>Si hay una tendencia real o si el mercado está en rango (lateral). Combina dos indicadores para medir la calidad de la tendencia.</td>
+                <td>Evitar operar en mercados sin dirección clara</td>
+              </tr>
+              <tr>
+                <td>iTrend</td>
+                <td>La dirección general del precio usando un filtro adaptativo. Similar a una media móvil pero más reactivo.</td>
+                <td>Confirmar la dirección macro del mercado</td>
+              </tr>
+              <tr>
+                <td>ICT Concepts</td>
+                <td>Niveles de liquidez donde se acumulan stops de muchos traders. Los grandes operadores suelen "cazar" estos niveles antes de invertir.</td>
+                <td>Anticipar movimientos de liquidación</td>
+              </tr>
+              <tr>
+                <td>Trendlines</td>
+                <td>Líneas de soporte y resistencia diagonales calculadas automáticamente a partir de máximos y mínimos relevantes.</td>
+                <td>Identificar zonas de confluencia estructural</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="tut-highlight">
+            <strong>Consejo:</strong> No necesitas entender cada indicador en detalle — Claude AI interpreta todos los datos juntos y te explica en lenguaje claro qué está pasando y qué zonas son relevantes.
+          </div>
+        </div>
+
+        <!-- TAB: API KEY -->
+        <div id="tut-apikey" class="tut-page">
+          <h2>Cómo obtener tu API Key</h2>
+          <p>Para que Claude AI analice el mercado necesitas una clave API de Anthropic. Es gratuita registrarse; los análisis se cobran por uso (muy bajo coste por análisis).</p>
+          <h3>Pasos</h3>
+          <ul class="tut-steps">
+            <li><div class="tut-step-n">1</div><div>Abre tu navegador y ve a:<br><span class="tut-code">console.anthropic.com</span></div></li>
+            <li><div class="tut-step-n">2</div><div>Crea una cuenta o inicia sesión con tu email.</div></li>
+            <li><div class="tut-step-n">3</div><div>En el menú lateral, haz clic en <strong>"API Keys"</strong>.</div></li>
+            <li><div class="tut-step-n">4</div><div>Haz clic en el botón <strong>"Create Key"</strong>.</div></li>
+            <li><div class="tut-step-n">5</div><div>Copia la clave. Empieza con <span class="tut-code">sk-ant-</span></div></li>
+            <li><div class="tut-step-n">6</div><div>Pégala en el campo <strong>"API Key"</strong> de esta página. Se guarda automáticamente en tu navegador.</div></li>
+          </ul>
+          <div class="tut-warn">
+            ⚠ No compartas tu API Key con nadie. Es como una contraseña. Si crees que fue expuesta, elimínala en console.anthropic.com y crea una nueva.
+          </div>
+          <h3>Coste aproximado</h3>
+          <table class="tut-table">
+            <thead><tr><th>Modelo</th><th>Coste por análisis</th><th>Características</th></tr></thead>
+            <tbody>
+              <tr><td>Sonnet 4.6</td><td>~$0.01 – $0.05</td><td>Rápido, preciso, uso diario</td></tr>
+              <tr><td>Opus 4.7</td><td>~$0.05 – $0.20</td><td>Análisis más profundo, más lento</td></tr>
+              <tr><td>Haiku 4.5</td><td>~$0.001 – $0.01</td><td>El más económico, menos detalle</td></tr>
+            </tbody>
+          </table>
+          <div class="tut-highlight">
+            Anthropic ofrece créditos gratuitos al registrarse. Consulta el pricing actual en <strong>anthropic.com/pricing</strong>.
+          </div>
+        </div>
+
+        <!-- TAB: FAQ -->
+        <div id="tut-faq" class="tut-page">
+          <h2>Preguntas frecuentes</h2>
+          <div class="tut-faq">
+            <div class="tut-faq-item">
+              <div class="tut-faq-q">¿Qué formatos de símbolo acepta?</div>
+              <div class="tut-faq-a">
+                Criptomonedas: <span class="tut-tag">BTC/USDT</span><span class="tut-tag">ETH/USDT</span><span class="tut-tag">SOL/USDT</span><br>
+                Acciones: <span class="tut-tag">AAPL</span><span class="tut-tag">TSLA</span><span class="tut-tag">NVDA</span><br>
+                Forex: <span class="tut-tag">EURUSD=X</span><span class="tut-tag">GBPUSD=X</span><br>
+                Índices: <span class="tut-tag">^SPX</span><span class="tut-tag">^FTSE</span><span class="tut-tag">^NDX</span>
+              </div>
+            </div>
+            <div class="tut-faq-item">
+              <div class="tut-faq-q">¿Cuánto tarda el análisis?</div>
+              <div class="tut-faq-a">Entre 15 y 60 segundos. Depende del número de timeframes e indicadores activados, y del modelo Claude elegido. Sonnet es el más rápido.</div>
+            </div>
+            <div class="tut-faq-item">
+              <div class="tut-faq-q">El análisis dice "Symbol not found" — ¿qué hago?</div>
+              <div class="tut-faq-a">Verifica el formato exacto del símbolo. Para crypto usa la barra: <span class="tut-tag">BTC/USDT</span> no <span class="tut-tag">BTCUSDT</span>. Para acciones solo el ticker: <span class="tut-tag">AAPL</span> sin barras ni moneda.</div>
+            </div>
+            <div class="tut-faq-item">
+              <div class="tut-faq-q">¿Es segura mi API Key?</div>
+              <div class="tut-faq-a">La clave se guarda únicamente en tu navegador (localStorage). No se envía a ningún servidor de AI Trader — solo se usa directamente para comunicarse con la API de Anthropic.</div>
+            </div>
+            <div class="tut-faq-item">
+              <div class="tut-faq-q">¿Puedo usar el análisis para operar en real?</div>
+              <div class="tut-faq-a">El análisis es una herramienta de apoyo, no una señal automática. Siempre combínalo con tu propio criterio y gestión de riesgo. Trading conlleva riesgo de pérdida de capital.</div>
+            </div>
+            <div class="tut-faq-item">
+              <div class="tut-faq-q">El botón "Analizar con Claude" no responde — ¿qué pasa?</div>
+              <div class="tut-faq-a">Verifica que: (1) has introducido una API Key válida, (2) tienes créditos en tu cuenta Anthropic, (3) el símbolo es correcto. Si el error persiste, prueba con "Mostrar Prompt" primero para confirmar que los datos se descargan correctamente.</div>
+            </div>
+            <div class="tut-faq-item">
+              <div class="tut-faq-q">¿Qué diferencia hay entre Mostrar Prompt y Analizar con Claude?</div>
+              <div class="tut-faq-a">"Mostrar Prompt" solo genera el texto con los datos de mercado — no usa créditos de API. "Analizar con Claude" envía ese texto a la IA y consume créditos. Puedes usar "Mostrar Prompt" para revisar los datos sin coste.</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- tut-body -->
+    </div><!-- tut-panel -->
+  </div><!-- tut-modal -->
+
 </body>
 </html>
 """
