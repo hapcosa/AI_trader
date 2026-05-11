@@ -1,0 +1,656 @@
+//@version=6
+// ════════════════════════════════════════════════════════════════════════
+//  Ehlers CyberCycle v6.2 — UNI-config Indicator (single-pair config)
+//  Base: Cybercycle.pine (5 alpha methods, conf weights 20/15/15/15/10/10/15)
+//  Single config (UNIUSDT 1h) applied across ALL pairs.
+//  Source: bot/config/cybercyclev3/UNIUSDT_cybercyclev3_1h.json
+//  Added vs base: MTF Confluence filter
+//  REMOVED: per-coin config dispatcher, mm_* (martingale/anti-mart/kelly), risk mgmt
+// ════════════════════════════════════════════════════════════════════════
+indicator("Ehlers CyberCycle v6.2 [UNI cfg]", shorttitle="cybercyclev3",
+     overlay=true, max_labels_count=500)
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  GLOBAL
+// ════════════════════════════════════════════════════════════════════════
+grp_global = "══════ GLOBAL ══════"
+srcCyber   = input.source(hl2, "Source", group=grp_global)
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  ALPHA METHOD CONFIG (UNI defaults baked-in)
+// ════════════════════════════════════════════════════════════════════════
+grp_alpha    = "══════ Alpha Method ══════"
+eAlphaMethod = input.string("MAMA", "Alpha Method",
+     options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"], group=grp_alpha)
+eManualAlpha = input.float(0.42, "Manual Alpha", minval=0.05, maxval=0.80, step=0.01, group=grp_alpha)
+eAFloor      = input.float(0.0,  "Alpha Floor",  minval=0.0,  maxval=0.50, step=0.01, group=grp_alpha)
+
+// ── Homodyne ──
+grp_hd      = "── Homodyne ──"
+hdMinPeriod = input.float(3.0,  "Min Period", minval=2,  maxval=10, step=1,  group=grp_hd)
+hdMaxPeriod = input.float(40.0, "Max Period", minval=15, maxval=80, step=5,  group=grp_hd)
+
+// ── MAMA ──
+grp_mama       = "── MAMA ──"
+mamaFastLimit  = input.float(0.6,  "Fast Limit", minval=0.2,  maxval=0.9, step=0.05, group=grp_mama)
+mamaSlowLimit  = input.float(0.18, "Slow Limit", minval=0.01, maxval=0.2, step=0.01, group=grp_mama)
+
+// ── Autocorrelation ──
+grp_ac      = "── Autocorrelation ──"
+acMinPeriod = input.int(6,  "Min Period", minval=3,  maxval=15, group=grp_ac)
+acMaxPeriod = input.int(48, "Max Period", minval=20, maxval=80, group=grp_ac)
+acAvgLength = input.int(3,  "Avg Length", minval=1,  maxval=5,  group=grp_ac)
+
+// ── Kalman ──
+grp_kal         = "── Kalman ──"
+kalProcessNoise = input.float(0.01, "Process Noise (Q)",     minval=0.001, maxval=0.2,  step=0.005, group=grp_kal)
+kalMeasNoise    = input.float(0.5,  "Measurement Noise (R)", minval=0.05,  maxval=3.0,  step=0.1,   group=grp_kal)
+kalAlphaFast    = input.float(0.5,  "Alpha Fast",            minval=0.2,   maxval=0.8,  step=0.05,  group=grp_kal)
+kalAlphaSlow    = input.float(0.05, "Alpha Slow",            minval=0.01,  maxval=0.2,  step=0.01,  group=grp_kal)
+kalSensitivity  = input.float(2.0,  "Sensitivity",           minval=0.5,   maxval=5.0,  step=0.5,   group=grp_kal)
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  SIGNAL CONFIG (UNI defaults)
+// ════════════════════════════════════════════════════════════════════════
+grp_sig      = "══════ Signal ══════"
+eITrendAlpha = input.float(0.29, "iTrend Alpha",     minval=0.01, maxval=0.30, step=0.01, group=grp_sig)
+eTrigEma     = input.int(4,      "Trigger EMA",      minval=3,    maxval=30,              group=grp_sig)
+eMinBars     = input.int(10,     "Min Bars Between", minval=1,    maxval=50,              group=grp_sig)
+minConf      = input.float(70.0, "Confidence Min %", minval=30.0, maxval=95.0, step=5.0,  group=grp_sig)
+eOB          = input.float(1.5,  "OB Level",         minval=0.3,  maxval=3.0,  step=0.1,  group=grp_sig)
+eOS          = input.float(-1.5, "OS Level",         minval=-3.0, maxval=-0.3, step=0.1,  group=grp_sig)
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  FILTERS (UNI defaults)
+// ════════════════════════════════════════════════════════════════════════
+grp_flt   = "══════ Filters ══════"
+eUseTrend = input.bool(false, "Use Trend Filter",  group=grp_flt)
+eUseVol   = input.bool(true,  "Use Volume Filter", group=grp_flt)
+eVolMult  = input.float(1.5,  "Volume Multiplier", minval=0.5, maxval=5.0, step=0.1, group=grp_flt)
+eUseHTF   = input.bool(false, "Use HTF (4H) Filter", group=grp_flt)
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  MTF CONFLUENCE FILTER (UNI: 1h/4h/1d, EMA=15, min=3)
+// ════════════════════════════════════════════════════════════════════════
+grp_mtf      = "══════ MTF Confluence ══════"
+mtfEnable    = input.bool(true,  "Enable",       group=grp_mtf)
+mtfTf1       = input.timeframe("60",  "TF 1",    group=grp_mtf)
+mtfTf2       = input.timeframe("240", "TF 2",    group=grp_mtf)
+mtfTf3       = input.timeframe("D",   "TF 3",    group=grp_mtf)
+mtfEmaPeriod = input.int(15,     "EMA Period",   minval=5, maxval=300, step=5, group=grp_mtf)
+mtfMinAgree  = input.int(3,      "Min Agreeing", minval=1, maxval=3,           group=grp_mtf)
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  ALPHA METHOD 1: HOMODYNE
+// ════════════════════════════════════════════════════════════════════════
+f_homodyne() =>
+    var float _hd_smooth = 0.0
+    _hd_smooth := (4.0 * srcCyber + 3.0 * nz(srcCyber[1]) + 2.0 * nz(srcCyber[2]) + nz(srcCyber[3])) / 10.0
+
+    var float _hd_period = 15.0
+    float _hd_adj = 0.075 * nz(_hd_period[1], 15.0) + 0.54
+
+    var float _hd_det = 0.0
+    _hd_det := (0.0962 * _hd_smooth + 0.5769 * nz(_hd_smooth[2]) - 0.5769 * nz(_hd_smooth[4]) - 0.0962 * nz(_hd_smooth[6])) * _hd_adj
+
+    var float _hd_Q1 = 0.0
+    _hd_Q1 := (0.0962 * _hd_det + 0.5769 * nz(_hd_det[2]) - 0.5769 * nz(_hd_det[4]) - 0.0962 * nz(_hd_det[6])) * _hd_adj
+    float _hd_I1 = nz(_hd_det[3])
+
+    var float _hd_jI = 0.0
+    var float _hd_jQ = 0.0
+    _hd_jI := (0.0962 * _hd_I1 + 0.5769 * nz(_hd_I1[2]) - 0.5769 * nz(_hd_I1[4]) - 0.0962 * nz(_hd_I1[6])) * _hd_adj
+    _hd_jQ := (0.0962 * _hd_Q1 + 0.5769 * nz(_hd_Q1[2]) - 0.5769 * nz(_hd_Q1[4]) - 0.0962 * nz(_hd_Q1[6])) * _hd_adj
+
+    var float _hd_I2 = 0.0
+    var float _hd_Q2 = 0.0
+    _hd_I2 := 0.2 * (_hd_I1 - _hd_jQ) + 0.8 * nz(_hd_I2[1])
+    _hd_Q2 := 0.2 * (_hd_Q1 + _hd_jI) + 0.8 * nz(_hd_Q2[1])
+
+    var float _hd_Re = 0.0
+    var float _hd_Im = 0.0
+    _hd_Re := 0.2 * (_hd_I2 * nz(_hd_I2[1]) + _hd_Q2 * nz(_hd_Q2[1])) + 0.8 * nz(_hd_Re[1])
+    _hd_Im := 0.2 * (_hd_I2 * nz(_hd_Q2[1]) - _hd_Q2 * nz(_hd_I2[1])) + 0.8 * nz(_hd_Im[1])
+
+    float _hd_phaseAdv = (math.abs(_hd_Im) > 1e-10 and math.abs(_hd_Re) > 1e-10) ? math.atan(_hd_Im / _hd_Re) : 0.0
+    float _hd_rawPer = _hd_phaseAdv > 0.001 ? 2.0 * math.pi / _hd_phaseAdv : nz(_hd_period[1], 15.0)
+    _hd_rawPer := math.max(_hd_rawPer, 0.67 * nz(_hd_period[1], 15.0))
+    _hd_rawPer := math.min(_hd_rawPer, 1.5  * nz(_hd_period[1], 15.0))
+    _hd_rawPer := math.max(hdMinPeriod, math.min(hdMaxPeriod, _hd_rawPer))
+    _hd_period := 0.2 * _hd_rawPer + 0.8 * nz(_hd_period[1], 15.0)
+
+    var float _hd_smoothPeriod = 15.0
+    _hd_smoothPeriod := 0.33 * _hd_period + 0.67 * nz(_hd_smoothPeriod[1], 15.0)
+    _hd_smoothPeriod := math.max(hdMinPeriod, math.min(hdMaxPeriod, _hd_smoothPeriod))
+
+    float _alpha = 2.0 / (_hd_smoothPeriod + 1.0)
+    [_alpha, _hd_smoothPeriod]
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  ALPHA METHOD 2: MAMA (Phase Rate)
+// ════════════════════════════════════════════════════════════════════════
+f_mama() =>
+    float _m_adj = 1.665
+
+    var float _m_smooth = 0.0
+    _m_smooth := (4.0 * srcCyber + 3.0 * nz(srcCyber[1]) + 2.0 * nz(srcCyber[2]) + nz(srcCyber[3])) / 10.0
+
+    var float _m_det = 0.0
+    _m_det := (0.0962 * _m_smooth + 0.5769 * nz(_m_smooth[2]) - 0.5769 * nz(_m_smooth[4]) - 0.0962 * nz(_m_smooth[6])) * _m_adj
+
+    var float _m_Q1 = 0.0
+    _m_Q1 := (0.0962 * _m_det + 0.5769 * nz(_m_det[2]) - 0.5769 * nz(_m_det[4]) - 0.0962 * nz(_m_det[6])) * _m_adj
+    float _m_I1 = nz(_m_det[3])
+
+    var float _m_jI = 0.0
+    var float _m_jQ = 0.0
+    _m_jI := (0.0962 * _m_I1 + 0.5769 * nz(_m_I1[2]) - 0.5769 * nz(_m_I1[4]) - 0.0962 * nz(_m_I1[6])) * _m_adj
+    _m_jQ := (0.0962 * _m_Q1 + 0.5769 * nz(_m_Q1[2]) - 0.5769 * nz(_m_Q1[4]) - 0.0962 * nz(_m_Q1[6])) * _m_adj
+
+    var float _m_I2 = 0.0
+    var float _m_Q2 = 0.0
+    _m_I2 := 0.2 * (_m_I1 - _m_jQ) + 0.8 * nz(_m_I2[1])
+    _m_Q2 := 0.2 * (_m_Q1 + _m_jI) + 0.8 * nz(_m_Q2[1])
+
+    float _m_sumI = _m_I1 + nz(_m_I1[1])
+    float _m_sumQ = _m_Q1 + nz(_m_Q1[1])
+
+    var float _m_phase = 0.0
+    float _m_rawPhase = 0.0
+    if math.abs(_m_sumI) > 0.001
+        _m_rawPhase := math.atan(math.abs(_m_sumQ / _m_sumI)) * (180.0 / math.pi)
+    else
+        _m_rawPhase := 90.0
+
+    if _m_sumI < 0 and _m_sumQ > 0
+        _m_rawPhase := 180.0 - _m_rawPhase
+    else if _m_sumI < 0 and _m_sumQ < 0
+        _m_rawPhase := 180.0 + _m_rawPhase
+    else if _m_sumI > 0 and _m_sumQ < 0
+        _m_rawPhase := 360.0 - _m_rawPhase
+
+    _m_phase := _m_rawPhase
+
+    float _m_dp_raw = nz(_m_phase[1], 0.0) - _m_phase
+    if _m_dp_raw > 180.0
+        _m_dp_raw := _m_dp_raw - 360.0
+    if _m_dp_raw < -180.0
+        _m_dp_raw := _m_dp_raw + 360.0
+
+    float _m_dp = math.max(1.0, math.min(60.0, _m_dp_raw))
+
+    var float _m_dpSmooth = 5.0
+    _m_dpSmooth := 0.33 * _m_dp + 0.67 * nz(_m_dpSmooth[1], 5.0)
+    _m_dpSmooth := math.max(1.0, math.min(60.0, _m_dpSmooth))
+
+    float _m_alpha = mamaFastLimit / _m_dpSmooth
+    _m_alpha := math.max(mamaSlowLimit, math.min(mamaFastLimit, _m_alpha))
+
+    float _m_periodEst = math.max(2.0, (2.0 / _m_alpha) - 1.0)
+    [_m_alpha, _m_periodEst]
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  ALPHA METHOD 3: AUTOCORRELATION PERIODOGRAM
+// ════════════════════════════════════════════════════════════════════════
+f_autocorrelation() =>
+    float _ac_a1 = (0.707 * 2.0 * math.pi) / acMaxPeriod
+    float _ac_alphaHP = (math.cos(_ac_a1) + math.sin(_ac_a1) - 1.0) / math.cos(_ac_a1)
+
+    var float _ac_hp = 0.0
+    _ac_hp := (1.0 - _ac_alphaHP / 2.0) * (1.0 - _ac_alphaHP / 2.0) * (srcCyber - 2.0 * nz(srcCyber[1]) + nz(srcCyber[2])) + 2.0 * (1.0 - _ac_alphaHP) * nz(_ac_hp[1]) - (1.0 - _ac_alphaHP) * (1.0 - _ac_alphaHP) * nz(_ac_hp[2])
+
+    float _ac_a1ss = math.exp(-1.414 * math.pi / acMinPeriod)
+    float _ac_b1ss = 2.0 * _ac_a1ss * math.cos(1.414 * math.pi / acMinPeriod)
+    float _ac_c2ss = _ac_b1ss
+    float _ac_c3ss = -_ac_a1ss * _ac_a1ss
+    float _ac_c1ss = 1.0 - _ac_c2ss - _ac_c3ss
+
+    var float _ac_filt = 0.0
+    _ac_filt := _ac_c1ss * (_ac_hp + nz(_ac_hp[1])) / 2.0 + _ac_c2ss * nz(_ac_filt[1]) + _ac_c3ss * nz(_ac_filt[2])
+
+    int _ac_step = math.max(1, (acMaxPeriod - acMinPeriod) / 10)
+
+    var float _ac_bestPeriod = 15.0
+    float _ac_maxCorr = 0.0
+    float _ac_bestP = _ac_bestPeriod
+
+    for p = acMinPeriod to acMaxPeriod by _ac_step
+        float _sx = 0.0
+        float _sy = 0.0
+        float _sxx = 0.0
+        float _syy = 0.0
+        float _sxy = 0.0
+        int _cnt = acAvgLength * p
+        for j = 0 to math.min(_cnt - 1, 199)
+            float _x = nz(_ac_filt[j])
+            float _y = nz(_ac_filt[j + p])
+            _sx += _x
+            _sy += _y
+            _sxx += _x * _x
+            _syy += _y * _y
+            _sxy += _x * _y
+        float _denom = (_cnt * _sxx - _sx * _sx) * (_cnt * _syy - _sy * _sy)
+        float _corr = _denom > 0 ? (_cnt * _sxy - _sx * _sy) / math.sqrt(_denom) : 0.0
+        if _corr > _ac_maxCorr
+            _ac_maxCorr := _corr
+            _ac_bestP := float(p)
+
+    _ac_bestPeriod := 0.25 * _ac_bestP + 0.75 * nz(_ac_bestPeriod[1], 15.0)
+    _ac_bestPeriod := math.max(acMinPeriod, math.min(acMaxPeriod, _ac_bestPeriod))
+
+    float _ac_alpha = 2.0 / (_ac_bestPeriod + 1.0)
+    [_ac_alpha, _ac_bestPeriod]
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  ALPHA METHOD 4: KALMAN INNOVATION
+// ════════════════════════════════════════════════════════════════════════
+f_kalman() =>
+    var float _k_x = srcCyber
+    var float _k_P = 1.0
+    var float _k_innovEma = 0.001
+
+    float _k_xPred = _k_x
+    float _k_PPred = _k_P + kalProcessNoise
+
+    float _k_innovation = srcCyber - _k_xPred
+    float _k_S = _k_PPred + kalMeasNoise
+    float _k_K = _k_S > 1e-12 ? _k_PPred / _k_S : 0.5
+
+    _k_x := _k_xPred + _k_K * _k_innovation
+    _k_P := (1.0 - _k_K) * _k_PPred
+
+    float _k_absInnov = math.abs(_k_innovation)
+    _k_innovEma := 0.05 * _k_absInnov + 0.95 * nz(_k_innovEma[1], 0.001)
+
+    float _k_normInnov = _k_innovEma > 1e-12 ? _k_absInnov / _k_innovEma : 1.0
+    float _k_ratio = (_k_normInnov - 1.0) * kalSensitivity
+    float _k_sigmoid = 1.0 / (1.0 + math.exp(-_k_ratio))
+    float _k_alpha = kalAlphaSlow + (kalAlphaFast - kalAlphaSlow) * _k_sigmoid
+    _k_alpha := math.max(kalAlphaSlow, math.min(kalAlphaFast, _k_alpha))
+
+    float _k_period = math.max(2.0, (2.0 / _k_alpha) - 1.0)
+    [_k_alpha, _k_period]
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  ALPHA DISPATCHER
+// ════════════════════════════════════════════════════════════════════════
+[_a_hd, _p_hd] = f_homodyne()
+[_a_ma, _p_ma] = f_mama()
+[_a_ac, _p_ac] = f_autocorrelation()
+[_a_kl, _p_kl] = f_kalman()
+
+float adaptiveAlpha = switch eAlphaMethod
+    "Homodyne"        => _a_hd
+    "MAMA"            => _a_ma
+    "Autocorrelation" => _a_ac
+    "Kalman"          => _a_kl
+    => eManualAlpha
+
+float dominantPeriod = switch eAlphaMethod
+    "Homodyne"        => _p_hd
+    "MAMA"            => _p_ma
+    "Autocorrelation" => _p_ac
+    "Kalman"          => _p_kl
+    => (2.0 / eManualAlpha) - 1.0
+
+if eAFloor > 0
+    adaptiveAlpha := math.max(adaptiveAlpha, eAFloor)
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  ADAPTIVE CYBER CYCLE + TRIGGER + iTREND
+// ════════════════════════════════════════════════════════════════════════
+f_ema(float _src, int _len) =>
+    float _k = 2.0 / (_len + 1)
+    var float _out = 0.0
+    _out := _k * _src + (1.0 - _k) * nz(_out[1])
+    _out
+
+var float _mainSmooth = 0.0
+var float _mainCycle  = 0.0
+_mainSmooth := (srcCyber + 2.0 * nz(srcCyber[1]) + 2.0 * nz(srcCyber[2]) + nz(srcCyber[3])) / 6.0
+if bar_index < 7
+    _mainCycle := (srcCyber - 2.0 * nz(srcCyber[1]) + nz(srcCyber[2])) / 4.0
+else
+    float _a1 = (1.0 - 0.5 * adaptiveAlpha) * (1.0 - 0.5 * adaptiveAlpha)
+    float _a2 = 2.0 * (1.0 - adaptiveAlpha)
+    float _a3 = (1.0 - adaptiveAlpha) * (1.0 - adaptiveAlpha)
+    _mainCycle := _a1 * (_mainSmooth - 2.0 * nz(_mainSmooth[1]) + nz(_mainSmooth[2])) + _a2 * nz(_mainCycle[1]) - _a3 * nz(_mainCycle[2])
+
+float cyberCycle = _mainCycle
+float trigger    = f_ema(cyberCycle, eTrigEma)
+
+var float _iTrend = 0.0
+float _itA = eITrendAlpha
+_iTrend := (_itA - _itA * _itA / 4.0) * close + 0.5 * _itA * _itA * nz(close[1]) - (_itA - 0.75 * _itA * _itA) * nz(close[2]) + 2.0 * (1.0 - _itA) * nz(_iTrend[1]) - (1.0 - _itA) * (1.0 - _itA) * nz(_iTrend[2])
+float iTrend   = _iTrend
+bool bullTrend = iTrend > nz(iTrend[2])
+bool bearTrend = iTrend < nz(iTrend[2])
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  FISHER TRANSFORM
+// ════════════════════════════════════════════════════════════════════════
+float _fH = ta.highest(cyberCycle, 10)
+float _fL = ta.lowest(cyberCycle, 10)
+float _fR = _fH - _fL
+float _fV = _fR != 0 ? 2.0 * ((cyberCycle - _fL) / _fR - 0.5) : 0.0
+_fV := math.max(-0.999, math.min(0.999, _fV))
+float _fRaw = 0.5 * math.log((1.0 + _fV) / (1.0 - _fV))
+var float fisherT = 0.0
+fisherT := 0.5 * _fRaw + 0.5 * nz(fisherT[1])
+bool fishRising  = fisherT > nz(fisherT[1])
+bool fishFalling = fisherT < nz(fisherT[1])
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  VOLUME FILTER
+// ════════════════════════════════════════════════════════════════════════
+float volSma20 = ta.sma(volume, 20)
+float volRatio = volSma20 > 0 ? volume / volSma20 : 0
+bool  volumeOK = not eUseVol or volRatio >= eVolMult
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  HTF FILTER (4H)
+// ════════════════════════════════════════════════════════════════════════
+float htfSrc = request.security(syminfo.tickerid, "240", hl2,
+     lookahead = barmerge.lookahead_off)
+float htfCC  = request.security(syminfo.tickerid, "240", ta.ema(close, 10),
+     lookahead = barmerge.lookahead_off)
+bool htfBullish   = not eUseHTF or htfSrc > htfCC
+bool htfBearish   = not eUseHTF or htfSrc < htfCC
+bool htfAlignBuy  = not eUseHTF or htfBullish
+bool htfAlignSell = not eUseHTF or htfBearish
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  MTF CONFLUENCE FILTER
+//  Bull on TF: close > EMA(period) AND EMA slope up
+//  Bear on TF: close < EMA(period) AND EMA slope down
+//  Pass when agreeing >= min_agreeing
+// ════════════════════════════════════════════════════════════════════════
+f_mtf(string _tf) =>
+    [_c, _e] = request.security(syminfo.tickerid, _tf,
+         [close, ta.ema(close, mtfEmaPeriod)],
+         lookahead = barmerge.lookahead_off)
+    bool _slopeUp   = _e > nz(_e[1])
+    bool _slopeDown = _e < nz(_e[1])
+    [_c > _e and _slopeUp, _c < _e and _slopeDown]
+
+[mtfB1, mtfS1] = f_mtf(mtfTf1)
+[mtfB2, mtfS2] = f_mtf(mtfTf2)
+[mtfB3, mtfS3] = f_mtf(mtfTf3)
+
+int mtfBullCount = (mtfB1 ? 1 : 0) + (mtfB2 ? 1 : 0) + (mtfB3 ? 1 : 0)
+int mtfBearCount = (mtfS1 ? 1 : 0) + (mtfS2 ? 1 : 0) + (mtfS3 ? 1 : 0)
+bool mtfBuyOk  = not mtfEnable or mtfBullCount >= mtfMinAgree
+bool mtfSellOk = not mtfEnable or mtfBearCount >= mtfMinAgree
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  SIGNAL GENERATION
+// ════════════════════════════════════════════════════════════════════════
+bool bullCross = ta.crossover(cyberCycle, trigger)
+bool bearCross = ta.crossunder(cyberCycle, trigger)
+
+bool inOB = cyberCycle > eOB
+bool inOS = cyberCycle < eOS
+
+float momentum3 = cyberCycle - nz(cyberCycle[3])
+
+float buyConf = 0.0
+buyConf += bullCross                         ? 20.0 : 0.0
+buyConf += (eUseTrend ? bullTrend : true)    ? 15.0 : 0.0
+buyConf += inOS                              ? 15.0 : 0.0
+buyConf += (eUseVol  ? volumeOK  : true)     ? 15.0 : 0.0
+buyConf += fishRising                        ? 10.0 : 0.0
+buyConf += momentum3 > 0                     ? 10.0 : 0.0
+buyConf += htfAlignBuy                       ? 15.0 : 0.0
+buyConf := math.min(buyConf, 100.0)
+
+float sellConf = 0.0
+sellConf += bearCross                        ? 20.0 : 0.0
+sellConf += (eUseTrend ? bearTrend : true)   ? 15.0 : 0.0
+sellConf += inOB                             ? 15.0 : 0.0
+sellConf += (eUseVol  ? volumeOK  : true)    ? 15.0 : 0.0
+sellConf += fishFalling                      ? 10.0 : 0.0
+sellConf += momentum3 < 0                    ? 10.0 : 0.0
+sellConf += htfAlignSell                     ? 15.0 : 0.0
+sellConf := math.min(sellConf, 100.0)
+
+var int lastSigBar = 0
+bool barFilter = bar_index - lastSigBar >= eMinBars
+
+bool buySignal  = bullCross and buyConf  >= minConf and barFilter and (eUseTrend ? bullTrend : true) and htfAlignBuy  and mtfBuyOk
+bool sellSignal = bearCross and sellConf >= minConf and barFilter and (eUseTrend ? bearTrend : true) and htfAlignSell and mtfSellOk
+
+if buySignal or sellSignal
+    lastSigBar := bar_index
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  PRICE FORMAT HELPER
+// ════════════════════════════════════════════════════════════════════════
+f_formatPrice(float p) =>
+    string result = ""
+    if p >= 10000
+        result := str.tostring(p, "#")
+    else if p >= 100
+        result := str.tostring(p, "#.#")
+    else if p >= 1
+        result := str.tostring(p, "#.##")
+    else if p >= 0.01
+        result := str.tostring(p, "#.####")
+    else
+        result := str.tostring(p, "#.######")
+    result
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  VISUALIZATION
+// ════════════════════════════════════════════════════════════════════════
+grp_viz         = "══════ VISUALIZATION ══════"
+showITrend      = input.bool(true,  "Show iTrend",       group=grp_viz)
+showCloud       = input.bool(false, "Show Cloud",        group=grp_viz)
+showBuySignals  = input.bool(true,  "Show BUY Signals",  group=grp_viz)
+showSellSignals = input.bool(true,  "Show SELL Signals", group=grp_viz)
+showInfoTable   = input.bool(true,  "Show Info Table",   group=grp_viz)
+cloudAtrLen     = input.int(14,     "Cloud ATR Len",     group=grp_viz)
+cloudAtrMult    = input.float(1.5,  "Cloud ATR Mult",    group=grp_viz)
+offsetMult      = input.float(1.5,  "Label Offset (ATR mult)", minval=0.5, maxval=5.0, step=0.5, group=grp_viz)
+
+color bullColor = #00E5A0
+color bearColor = #FF4560
+color cloudBull = color.new(#00E5A0, 88)
+color cloudBear = color.new(#FF4560, 88)
+
+float atrViz     = ta.atr(cloudAtrLen)
+float cloudUpper = iTrend + atrViz * cloudAtrMult
+float cloudLower = iTrend - atrViz * cloudAtrMult
+
+plot(showITrend ? iTrend : na, "ITrend",
+     color     = bullTrend ? bullColor : bearColor,
+     linewidth = 1)
+
+pU = plot(showCloud ? cloudUpper : na, "Cloud Upper", color=color.new(color.gray, 95))
+pL = plot(showCloud ? cloudLower : na, "Cloud Lower", color=color.new(color.gray, 95))
+pM = plot(showCloud ? iTrend     : na, "Cloud Mid",   color=na)
+fill(pU, pM, color=bullTrend ? cloudBull : cloudBear, title="Upper Fill")
+fill(pM, pL, color=bullTrend ? cloudBull : cloudBear, title="Lower Fill")
+
+
+// ── Captura de precio ──
+varip float capturedBuyPrice  = na
+varip float capturedSellPrice = na
+varip bool  buyPriceLocked    = false
+varip bool  sellPriceLocked   = false
+
+if barstate.isnew
+    capturedBuyPrice  := na
+    capturedSellPrice := na
+    buyPriceLocked    := false
+    sellPriceLocked   := false
+
+if buySignal and not buyPriceLocked
+    capturedBuyPrice := barstate.ishistory ? srcCyber : close
+    buyPriceLocked   := true
+
+if sellSignal and not sellPriceLocked
+    capturedSellPrice := barstate.ishistory ? srcCyber : close
+    sellPriceLocked   := true
+
+
+// ── BUY label ──
+if showBuySignals and buySignal
+    float dp    = not na(capturedBuyPrice) ? capturedBuyPrice : srcCyber
+    string pStr = f_formatPrice(dp)
+    string live = barstate.isrealtime ? "·" : ""
+    label.new(
+         bar_index, low - atrViz * offsetMult,
+         "▲ " + pStr + live,
+         style     = label.style_label_up,
+         color     = color.new(bullColor, 15),
+         textcolor = color.white,
+         size      = size.small,
+         tooltip   = "BUY  conf=" + str.tostring(buyConf, "#") + "%")
+
+// ── SELL label ──
+if showSellSignals and sellSignal
+    float dp    = not na(capturedSellPrice) ? capturedSellPrice : srcCyber
+    string pStr = f_formatPrice(dp)
+    string live = barstate.isrealtime ? "·" : ""
+    label.new(
+         bar_index, high + atrViz * offsetMult,
+         "▼ " + pStr + live,
+         style     = label.style_label_down,
+         color     = color.new(bearColor, 15),
+         textcolor = color.white,
+         size      = size.small,
+         tooltip   = "SELL  conf=" + str.tostring(sellConf, "#") + "%")
+
+
+// ── Weak signals (cross + conf>=30 but below min) ──
+bool weakBuy  = bullCross and buyConf  >= 30 and buyConf  < minConf and barFilter and htfAlignBuy  and mtfBuyOk
+bool weakSell = bearCross and sellConf >= 30 and sellConf < minConf and barFilter and htfAlignSell and mtfSellOk
+plotshape(showBuySignals  and weakBuy,  "Weak Buy",
+     shape.circle, location.belowbar, color.new(bullColor, 65), size=size.tiny, offset=0)
+plotshape(showSellSignals and weakSell, "Weak Sell",
+     shape.circle, location.abovebar, color.new(bearColor, 65), size=size.tiny, offset=0)
+
+
+// ── Barcolor sutil ──
+barcolor(cyberCycle > trigger and bullTrend ? color.new(bullColor, 75) :
+         cyberCycle < trigger and bearTrend ? color.new(bearColor, 75) : na)
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  INFO TABLE
+// ════════════════════════════════════════════════════════════════════════
+if showInfoTable and barstate.islast
+    var table t = table.new(
+         position.top_right, 2, 12,
+         bgcolor      = color.new(#0D0D0D, 60),
+         border_width = 1,
+         border_color = color.new(color.gray, 70),
+         frame_width  = 1,
+         frame_color  = color.new(color.gray, 50))
+
+    color hdrCol  = #A0A0B0
+    color valCol  = #E8E8F0
+    color accentY = #FFD166
+    color accentG = bullColor
+    color accentR = bearColor
+
+    int row = 0
+
+    table.cell(t, 0, row, "METHOD", text_color=hdrCol, text_size=size.tiny, bgcolor=color.new(#1A1A2E, 40))
+    table.cell(t, 1, row,
+         eAlphaMethod + "  α=" + str.tostring(adaptiveAlpha, "#.###") + "  P=" + str.tostring(dominantPeriod, "#.#"),
+         text_color=accentY, text_size=size.tiny, bgcolor=color.new(#1A1A2E, 40))
+    row += 1
+
+    table.cell(t, 0, row, "CONFIG", text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row,
+         "UNI baked" + (eAFloor > 0 ? "  fl=" + str.tostring(eAFloor,"#.##") : "") + "  iT=" + str.tostring(eITrendAlpha,"#.##"),
+         text_color=accentY, text_size=size.tiny)
+    row += 1
+
+    table.cell(t, 0, row, "CYCLE", text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row, str.tostring(cyberCycle, "#.####"),
+         text_color = cyberCycle > 0 ? accentG : accentR, text_size=size.tiny)
+    row += 1
+
+    string trendStr = bullTrend ? "▲ BULL" : bearTrend ? "▼ BEAR" : "── FLAT"
+    table.cell(t, 0, row, "TREND", text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row, trendStr + (eUseTrend ? "" : "  [off]"),
+         text_color = bullTrend ? accentG : bearTrend ? accentR : color.gray, text_size=size.tiny)
+    row += 1
+
+    string zoneStr = inOB ? "⬆ OB" : inOS ? "⬇ OS" : "○ NEUTRAL"
+    table.cell(t, 0, row, "ZONE", text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row, zoneStr,
+         text_color = inOB ? accentR : inOS ? accentG : color.gray, text_size=size.tiny)
+    row += 1
+
+    table.cell(t, 0, row, "DIRECTION", text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row, cyberCycle > trigger ? "▲ BULLISH" : "▼ BEARISH",
+         text_color = cyberCycle > trigger ? accentG : accentR, text_size=size.tiny)
+    row += 1
+
+    float cConf = bullCross ? buyConf : bearCross ? sellConf : 0
+    string confStr = cConf > 0 ? str.tostring(cConf,"#") + "%  (min " + str.tostring(minConf,"#") + "%)" : "---"
+    table.cell(t, 0, row, "CONF", text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row, confStr,
+         text_color = cConf >= minConf ? accentG : cConf >= 30 ? accentY : color.gray, text_size=size.tiny)
+    row += 1
+
+    table.cell(t, 0, row, eUseVol ? "VOLUME" : "VOL [off]", text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row, eUseVol ? (volumeOK ? "✔ OK" : "✘ LOW") : "---",
+         text_color = volumeOK ? accentG : accentR, text_size=size.tiny)
+    row += 1
+
+    table.cell(t, 0, row, eUseHTF ? "HTF 4H" : "HTF [off]", text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row, eUseHTF ? (htfBullish ? "▲ BULL" : "▼ BEAR") : "---",
+         text_color = htfBullish ? accentG : accentR, text_size=size.tiny)
+    row += 1
+
+    string mtfStr = mtfEnable ?
+         ("Bull " + str.tostring(mtfBullCount) + "/3  Bear " + str.tostring(mtfBearCount) + "/3  (min " + str.tostring(mtfMinAgree) + ")") :
+         "---"
+    color mtfCol = mtfEnable ? (mtfBullCount >= mtfMinAgree ? accentG : mtfBearCount >= mtfMinAgree ? accentR : color.gray) : color.gray
+    table.cell(t, 0, row, mtfEnable ? "MTF" : "MTF [off]", text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row, mtfStr, text_color=mtfCol, text_size=size.tiny)
+    row += 1
+
+    table.cell(t, 0, row, "CONFIG", text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row,
+         "T=" + str.tostring(eTrigEma) + "  B=" + str.tostring(eMinBars) +
+         "  OB=" + str.tostring(eOB,"#.#") + "  OS=" + str.tostring(eOS,"#.#"),
+         text_color=valCol, text_size=size.tiny)
+    row += 1
+
+    table.cell(t, 0, row, "ALL α", text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row,
+         "HD=" + str.tostring(_a_hd,"#.###") + "  MA=" + str.tostring(_a_ma,"#.###") +
+         "  AC=" + str.tostring(_a_ac,"#.###") + "  KL=" + str.tostring(_a_kl,"#.###"),
+         text_color=color.new(color.gray,20), text_size=size.tiny)
+
+
+// ════════════════════════════════════════════════════════════════════════
+//  ALERTS
+// ════════════════════════════════════════════════════════════════════════
+alertcondition(buySignal,  "Buy",        "CCv3: BUY Signal")
+alertcondition(sellSignal, "Sell",       "CCv3: SELL Signal")
+alertcondition(bullCross,  "Bull Cross", "CCv3: Bull Cross (unfiltered)")
+alertcondition(bearCross,  "Bear Cross", "CCv3: Bear Cross (unfiltered)")

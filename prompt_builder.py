@@ -647,6 +647,49 @@ def _build_session_history(dfs: dict, n_sessions: int = 5) -> str:
     return "\n".join(lines)
 
 
+def _build_recent_alerts(symbol: str | None, hours: int = 24) -> str:
+    """Pull recent alerts from indicatorsForge SQLite DB and format for the prompt."""
+    try:
+        from AI_trader.data.alerts_reader import (
+            format_alerts_block,
+            format_dominance_block,
+            get_dominance_trend,
+            get_recent_alerts,
+        )
+    except ImportError:
+        try:
+            from .data.alerts_reader import (  # type: ignore
+                format_alerts_block,
+                format_dominance_block,
+                get_dominance_trend,
+                get_recent_alerts,
+            )
+        except ImportError:
+            return ""
+
+    smc_alerts = get_recent_alerts(symbol=symbol, source_type="indicator_smc", since_hours=hours, limit=15)
+    tv_alerts = get_recent_alerts(symbol=symbol, source_type="tradingview_alert", since_hours=hours, limit=10)
+    ai_alerts = get_recent_alerts(symbol=symbol, source_type="ai_signal", since_hours=hours, limit=5)
+    dom_trend = get_dominance_trend(hours=hours)
+
+    if not smc_alerts and not tv_alerts and not ai_alerts and not dom_trend.get("available"):
+        return ""
+
+    parts = [_section(f"RECENT ALERTS — last {hours}h")]
+    parts.append("[USDT DOMINANCE CONTEXT]")
+    parts.append(format_dominance_block(dom_trend))
+    if smc_alerts:
+        parts.append("\n[SMC ALERTS]")
+        parts.append(format_alerts_block(smc_alerts, max_items=15))
+    if tv_alerts:
+        parts.append("\n[TRADINGVIEW ALERTS]")
+        parts.append(format_alerts_block(tv_alerts, max_items=10))
+    if ai_alerts:
+        parts.append("\n[PRIOR AI SIGNALS]")
+        parts.append(format_alerts_block(ai_alerts, max_items=5))
+    return "\n".join(parts)
+
+
 def _build_pretrain_context(pretrain_summary):
     if not pretrain_summary:
         return ""
@@ -771,6 +814,11 @@ def build_prompt(
 
     blocks.append(_build_market_cap(market_cap_data))
     blocks.append(_build_usdt_dominance(usdt_data))
+
+    # Recent alerts from indicatorsForge (TradingView/SMC/USDT.D/AI signals)
+    alerts_block = _build_recent_alerts(symbol=symbol, hours=24)
+    if alerts_block:
+        blocks.append(alerts_block)
 
     # Raw OHLCV history (14 days)
     blocks.append(_build_ohlcv_history(dfs, timeframes, days=ohlcv_history_days))

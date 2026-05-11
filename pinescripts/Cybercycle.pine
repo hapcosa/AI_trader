@@ -1,0 +1,1177 @@
+//@version=6
+indicator("Ehlers CyberCycle", shorttitle="cybercycle", overlay=true, max_labels_count=500)
+
+// ── GLOBAL SETTINGS ──
+grp_global = "══════ GLOBAL SETTINGS ══════"
+srcCyber   = input.source(hl2, "Source", group=grp_global)
+signalMode = input.string("Per Coin", "Confidence Mode",
+     options=["Per Coin","Conservative","Standard","Aggressive"], group=grp_global)
+
+// ── HOMODYNE PARAMS ──
+grp_hd      = "── Homodyne Params ──"
+hdMinPeriod = input.float(3.0,  "Min Period", minval=2,  maxval=10, step=1,  group=grp_hd)
+hdMaxPeriod = input.float(40.0, "Max Period", minval=15, maxval=80, step=5,  group=grp_hd)
+
+// ── MAMA PARAMS ──
+grp_mama       = "── MAMA Params ──"
+mamaFastLimit  = input.float(0.5,  "Fast Limit", minval=0.2, maxval=0.8,  step=0.05, group=grp_mama)
+mamaSlowLimit  = input.float(0.05, "Slow Limit", minval=0.01,maxval=0.2,  step=0.01, group=grp_mama)
+
+// ── AUTOCORRELATION PARAMS ──
+grp_ac      = "── Autocorrelation Params ──"
+acMinPeriod = input.int(6,  "Min Period", minval=3,  maxval=15, group=grp_ac)
+acMaxPeriod = input.int(48, "Max Period", minval=20, maxval=80, group=grp_ac)
+acAvgLength = input.int(3,  "Avg Length", minval=1,  maxval=5,  group=grp_ac)
+
+// ── KALMAN PARAMS ──
+grp_kal         = "── Kalman Params ──"
+kalProcessNoise = input.float(0.01, "Process Noise (Q)", minval=0.001,maxval=0.2,  step=0.005,group=grp_kal)
+kalMeasNoise    = input.float(0.5,  "Measurement Noise (R)",minval=0.05,maxval=3.0,step=0.1,  group=grp_kal)
+kalAlphaFast    = input.float(0.5,  "Alpha Fast",       minval=0.2,  maxval=0.8,  step=0.05, group=grp_kal)
+kalAlphaSlow    = input.float(0.05, "Alpha Slow",       minval=0.01, maxval=0.2,  step=0.01, group=grp_kal)
+kalSensitivity  = input.float(2.0,  "Sensitivity",      minval=0.5,  maxval=5.0,  step=0.5,  group=grp_kal)
+
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║                  PER-COIN CONFIGURATION                         ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+// ─── BTC ───
+grp_BTC = "──── BTC ────"
+cfg_BTC_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_BTC)
+cfg_BTC_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_BTC)
+cfg_BTC_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_BTC)
+cfg_BTC_trigEma  = input.int(9,   "Trigger EMA",      minval=3, maxval=30,          group=grp_BTC)
+cfg_BTC_minBars  = input.int(16,  "Min Bars Between", minval=5, maxval=50,          group=grp_BTC)
+cfg_BTC_conf     = input.float(75,"Confidence Min %", minval=30,maxval=95,step=5,   group=grp_BTC)
+cfg_BTC_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_BTC)
+cfg_BTC_ob       = input.float(1.5,"OB Level",        minval=0.3,maxval=3.0,step=0.1,group=grp_BTC)
+cfg_BTC_os       = input.float(-1.5,"OS Level",       minval=-3.0,maxval=-0.3,step=0.1,group=grp_BTC)
+cfg_BTC_aFloor   = input.float(0.0,"Alpha Floor",     minval=0.0,maxval=0.50,step=0.01,group=grp_BTC)
+cfg_BTC_htf      = input.bool(false,"Use HTF Filter", group=grp_BTC)
+cfg_BTC_trend    = input.bool(true,"Use Trend Filter",group=grp_BTC)
+cfg_BTC_vol      = input.bool(true,"Use Volume Filter",group=grp_BTC)
+
+// ─── ETH ───
+grp_ETH = "──── ETH ────"
+cfg_ETH_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_ETH)
+cfg_ETH_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_ETH)
+cfg_ETH_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_ETH)
+cfg_ETH_trigEma  = input.int(9,   "Trigger EMA",      minval=3, maxval=30,          group=grp_ETH)
+cfg_ETH_minBars  = input.int(16,  "Min Bars Between", minval=5, maxval=50,          group=grp_ETH)
+cfg_ETH_conf     = input.float(75,"Confidence Min %", minval=30,maxval=95,step=5,   group=grp_ETH)
+cfg_ETH_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_ETH)
+cfg_ETH_ob       = input.float(1.5,"OB Level",        minval=0.3,maxval=3.0,step=0.1,group=grp_ETH)
+cfg_ETH_os       = input.float(-1.5,"OS Level",       minval=-3.0,maxval=-0.3,step=0.1,group=grp_ETH)
+cfg_ETH_aFloor   = input.float(0.0,"Alpha Floor",     minval=0.0,maxval=0.50,step=0.01,group=grp_ETH)
+cfg_ETH_htf      = input.bool(false,"Use HTF Filter", group=grp_ETH)
+cfg_ETH_trend    = input.bool(true,"Use Trend Filter",group=grp_ETH)
+cfg_ETH_vol      = input.bool(true,"Use Volume Filter",group=grp_ETH)
+
+// ─── SOL ───
+grp_SOL = "──── SOL ────"
+cfg_SOL_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_SOL)
+cfg_SOL_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_SOL)
+cfg_SOL_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_SOL)
+cfg_SOL_trigEma  = input.int(9,   "Trigger EMA",      minval=3, maxval=30,          group=grp_SOL)
+cfg_SOL_minBars  = input.int(16,  "Min Bars Between", minval=5, maxval=50,          group=grp_SOL)
+cfg_SOL_conf     = input.float(75,"Confidence Min %", minval=30,maxval=95,step=5,   group=grp_SOL)
+cfg_SOL_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_SOL)
+cfg_SOL_ob       = input.float(1.5,"OB Level",        minval=0.3,maxval=3.0,step=0.1,group=grp_SOL)
+cfg_SOL_os       = input.float(-1.5,"OS Level",       minval=-3.0,maxval=-0.3,step=0.1,group=grp_SOL)
+cfg_SOL_aFloor   = input.float(0.0,"Alpha Floor",     minval=0.0,maxval=0.50,step=0.01,group=grp_SOL)
+cfg_SOL_htf      = input.bool(false,"Use HTF Filter", group=grp_SOL)
+cfg_SOL_trend    = input.bool(true,"Use Trend Filter",group=grp_SOL)
+cfg_SOL_vol      = input.bool(true,"Use Volume Filter",group=grp_SOL)
+
+// ─── DOGE ───
+grp_DOGE = "──── DOGE ────"
+cfg_DOGE_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_DOGE)
+cfg_DOGE_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_DOGE)
+cfg_DOGE_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_DOGE)
+cfg_DOGE_trigEma  = input.int(9,  "Trigger EMA",      minval=3, maxval=30,          group=grp_DOGE)
+cfg_DOGE_minBars  = input.int(16, "Min Bars Between", minval=5, maxval=50,          group=grp_DOGE)
+cfg_DOGE_conf     = input.float(75,"Confidence Min %",minval=30,maxval=95,step=5,   group=grp_DOGE)
+cfg_DOGE_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_DOGE)
+cfg_DOGE_ob       = input.float(1.5,"OB Level",       minval=0.3,maxval=3.0,step=0.1,group=grp_DOGE)
+cfg_DOGE_os       = input.float(-1.5,"OS Level",      minval=-3.0,maxval=-0.3,step=0.1,group=grp_DOGE)
+cfg_DOGE_aFloor   = input.float(0.0,"Alpha Floor",    minval=0.0,maxval=0.50,step=0.01,group=grp_DOGE)
+cfg_DOGE_htf      = input.bool(false,"Use HTF Filter",group=grp_DOGE)
+cfg_DOGE_trend    = input.bool(true,"Use Trend Filter",group=grp_DOGE)
+cfg_DOGE_vol      = input.bool(true,"Use Volume Filter",group=grp_DOGE)
+
+// ─── BCH ───
+grp_BCH = "──── BCH ────"
+cfg_BCH_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_BCH)
+cfg_BCH_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_BCH)
+cfg_BCH_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_BCH)
+cfg_BCH_trigEma  = input.int(9,  "Trigger EMA",      minval=3, maxval=30,          group=grp_BCH)
+cfg_BCH_minBars  = input.int(16, "Min Bars Between", minval=5, maxval=50,          group=grp_BCH)
+cfg_BCH_conf     = input.float(75,"Confidence Min %",minval=30,maxval=95,step=5,   group=grp_BCH)
+cfg_BCH_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_BCH)
+cfg_BCH_ob       = input.float(1.5,"OB Level",       minval=0.3,maxval=3.0,step=0.1,group=grp_BCH)
+cfg_BCH_os       = input.float(-1.5,"OS Level",      minval=-3.0,maxval=-0.3,step=0.1,group=grp_BCH)
+cfg_BCH_aFloor   = input.float(0.0,"Alpha Floor",    minval=0.0,maxval=0.50,step=0.01,group=grp_BCH)
+cfg_BCH_htf      = input.bool(false,"Use HTF Filter",group=grp_BCH)
+cfg_BCH_trend    = input.bool(true,"Use Trend Filter",group=grp_BCH)
+cfg_BCH_vol      = input.bool(true,"Use Volume Filter",group=grp_BCH)
+
+// ─── UNI ───
+grp_UNI = "──── UNI ────"
+cfg_UNI_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_UNI)
+cfg_UNI_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_UNI)
+cfg_UNI_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_UNI)
+cfg_UNI_trigEma  = input.int(9,  "Trigger EMA",      minval=3, maxval=30,          group=grp_UNI)
+cfg_UNI_minBars  = input.int(16, "Min Bars Between", minval=5, maxval=50,          group=grp_UNI)
+cfg_UNI_conf     = input.float(75,"Confidence Min %",minval=30,maxval=95,step=5,   group=grp_UNI)
+cfg_UNI_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_UNI)
+cfg_UNI_ob       = input.float(1.5,"OB Level",       minval=0.3,maxval=3.0,step=0.1,group=grp_UNI)
+cfg_UNI_os       = input.float(-1.5,"OS Level",      minval=-3.0,maxval=-0.3,step=0.1,group=grp_UNI)
+cfg_UNI_aFloor   = input.float(0.0,"Alpha Floor",    minval=0.0,maxval=0.50,step=0.01,group=grp_UNI)
+cfg_UNI_htf      = input.bool(false,"Use HTF Filter",group=grp_UNI)
+cfg_UNI_trend    = input.bool(true,"Use Trend Filter",group=grp_UNI)
+cfg_UNI_vol      = input.bool(true,"Use Volume Filter",group=grp_UNI)
+
+// ─── PEPE ───
+grp_PEPE = "──── PEPE ────"
+cfg_PEPE_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_PEPE)
+cfg_PEPE_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_PEPE)
+cfg_PEPE_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_PEPE)
+cfg_PEPE_trigEma  = input.int(9,  "Trigger EMA",      minval=3, maxval=30,          group=grp_PEPE)
+cfg_PEPE_minBars  = input.int(16, "Min Bars Between", minval=5, maxval=50,          group=grp_PEPE)
+cfg_PEPE_conf     = input.float(75,"Confidence Min %",minval=30,maxval=95,step=5,   group=grp_PEPE)
+cfg_PEPE_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_PEPE)
+cfg_PEPE_ob       = input.float(1.5,"OB Level",       minval=0.3,maxval=3.0,step=0.1,group=grp_PEPE)
+cfg_PEPE_os       = input.float(-1.5,"OS Level",      minval=-3.0,maxval=-0.3,step=0.1,group=grp_PEPE)
+cfg_PEPE_aFloor   = input.float(0.0,"Alpha Floor",    minval=0.0,maxval=0.50,step=0.01,group=grp_PEPE)
+cfg_PEPE_htf      = input.bool(false,"Use HTF Filter",group=grp_PEPE)
+cfg_PEPE_trend    = input.bool(true,"Use Trend Filter",group=grp_PEPE)
+cfg_PEPE_vol      = input.bool(true,"Use Volume Filter",group=grp_PEPE)
+
+// ─── ONDO ───
+grp_ONDO = "──── ONDO ────"
+cfg_ONDO_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_ONDO)
+cfg_ONDO_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_ONDO)
+cfg_ONDO_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_ONDO)
+cfg_ONDO_trigEma  = input.int(9,  "Trigger EMA",      minval=3, maxval=30,          group=grp_ONDO)
+cfg_ONDO_minBars  = input.int(16, "Min Bars Between", minval=5, maxval=50,          group=grp_ONDO)
+cfg_ONDO_conf     = input.float(75,"Confidence Min %",minval=30,maxval=95,step=5,   group=grp_ONDO)
+cfg_ONDO_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_ONDO)
+cfg_ONDO_ob       = input.float(1.5,"OB Level",       minval=0.3,maxval=3.0,step=0.1,group=grp_ONDO)
+cfg_ONDO_os       = input.float(-1.5,"OS Level",      minval=-3.0,maxval=-0.3,step=0.1,group=grp_ONDO)
+cfg_ONDO_aFloor   = input.float(0.0,"Alpha Floor",    minval=0.0,maxval=0.50,step=0.01,group=grp_ONDO)
+cfg_ONDO_htf      = input.bool(false,"Use HTF Filter",group=grp_ONDO)
+cfg_ONDO_trend    = input.bool(true,"Use Trend Filter",group=grp_ONDO)
+cfg_ONDO_vol      = input.bool(true,"Use Volume Filter",group=grp_ONDO)
+
+// ─── BNB ───
+grp_BNB = "──── BNB ────"
+cfg_BNB_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_BNB)
+cfg_BNB_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_BNB)
+cfg_BNB_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_BNB)
+cfg_BNB_trigEma  = input.int(9,  "Trigger EMA",      minval=3, maxval=30,          group=grp_BNB)
+cfg_BNB_minBars  = input.int(16, "Min Bars Between", minval=5, maxval=50,          group=grp_BNB)
+cfg_BNB_conf     = input.float(75,"Confidence Min %",minval=30,maxval=95,step=5,   group=grp_BNB)
+cfg_BNB_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_BNB)
+cfg_BNB_ob       = input.float(1.5,"OB Level",       minval=0.3,maxval=3.0,step=0.1,group=grp_BNB)
+cfg_BNB_os       = input.float(-1.5,"OS Level",      minval=-3.0,maxval=-0.3,step=0.1,group=grp_BNB)
+cfg_BNB_aFloor   = input.float(0.0,"Alpha Floor",    minval=0.0,maxval=0.50,step=0.01,group=grp_BNB)
+cfg_BNB_htf      = input.bool(false,"Use HTF Filter",group=grp_BNB)
+cfg_BNB_trend    = input.bool(true,"Use Trend Filter",group=grp_BNB)
+cfg_BNB_vol      = input.bool(true,"Use Volume Filter",group=grp_BNB)
+
+// ─── ADA ───
+grp_ADA = "──── ADA ────"
+cfg_ADA_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_ADA)
+cfg_ADA_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_ADA)
+cfg_ADA_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_ADA)
+cfg_ADA_trigEma  = input.int(9,  "Trigger EMA",      minval=3, maxval=30,          group=grp_ADA)
+cfg_ADA_minBars  = input.int(16, "Min Bars Between", minval=5, maxval=50,          group=grp_ADA)
+cfg_ADA_conf     = input.float(75,"Confidence Min %",minval=30,maxval=95,step=5,   group=grp_ADA)
+cfg_ADA_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_ADA)
+cfg_ADA_ob       = input.float(1.5,"OB Level",       minval=0.3,maxval=3.0,step=0.1,group=grp_ADA)
+cfg_ADA_os       = input.float(-1.5,"OS Level",      minval=-3.0,maxval=-0.3,step=0.1,group=grp_ADA)
+cfg_ADA_aFloor   = input.float(0.0,"Alpha Floor",    minval=0.0,maxval=0.50,step=0.01,group=grp_ADA)
+cfg_ADA_htf      = input.bool(false,"Use HTF Filter",group=grp_ADA)
+cfg_ADA_trend    = input.bool(true,"Use Trend Filter",group=grp_ADA)
+cfg_ADA_vol      = input.bool(true,"Use Volume Filter",group=grp_ADA)
+
+// ─── AVAX ───
+grp_AVAX = "──── AVAX ────"
+cfg_AVAX_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_AVAX)
+cfg_AVAX_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_AVAX)
+cfg_AVAX_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_AVAX)
+cfg_AVAX_trigEma  = input.int(9,  "Trigger EMA",      minval=3, maxval=30,          group=grp_AVAX)
+cfg_AVAX_minBars  = input.int(16, "Min Bars Between", minval=5, maxval=50,          group=grp_AVAX)
+cfg_AVAX_conf     = input.float(75,"Confidence Min %",minval=30,maxval=95,step=5,   group=grp_AVAX)
+cfg_AVAX_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_AVAX)
+cfg_AVAX_ob       = input.float(1.5,"OB Level",       minval=0.3,maxval=3.0,step=0.1,group=grp_AVAX)
+cfg_AVAX_os       = input.float(-1.5,"OS Level",      minval=-3.0,maxval=-0.3,step=0.1,group=grp_AVAX)
+cfg_AVAX_aFloor   = input.float(0.0,"Alpha Floor",    minval=0.0,maxval=0.50,step=0.01,group=grp_AVAX)
+cfg_AVAX_htf      = input.bool(false,"Use HTF Filter",group=grp_AVAX)
+cfg_AVAX_trend    = input.bool(true,"Use Trend Filter",group=grp_AVAX)
+cfg_AVAX_vol      = input.bool(true,"Use Volume Filter",group=grp_AVAX)
+
+// ─── LTC ───
+grp_LTC = "──── LTC ────"
+cfg_LTC_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_LTC)
+cfg_LTC_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_LTC)
+cfg_LTC_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_LTC)
+cfg_LTC_trigEma  = input.int(9,  "Trigger EMA",      minval=3, maxval=30,          group=grp_LTC)
+cfg_LTC_minBars  = input.int(16, "Min Bars Between", minval=5, maxval=50,          group=grp_LTC)
+cfg_LTC_conf     = input.float(75,"Confidence Min %",minval=30,maxval=95,step=5,   group=grp_LTC)
+cfg_LTC_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_LTC)
+cfg_LTC_ob       = input.float(1.5,"OB Level",       minval=0.3,maxval=3.0,step=0.1,group=grp_LTC)
+cfg_LTC_os       = input.float(-1.5,"OS Level",      minval=-3.0,maxval=-0.3,step=0.1,group=grp_LTC)
+cfg_LTC_aFloor   = input.float(0.0,"Alpha Floor",    minval=0.0,maxval=0.50,step=0.01,group=grp_LTC)
+cfg_LTC_htf      = input.bool(false,"Use HTF Filter",group=grp_LTC)
+cfg_LTC_trend    = input.bool(true,"Use Trend Filter",group=grp_LTC)
+cfg_LTC_vol      = input.bool(true,"Use Volume Filter",group=grp_LTC)
+
+// ─── SUI ───
+grp_SUI = "──── SUI ────"
+cfg_SUI_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_SUI)
+cfg_SUI_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_SUI)
+cfg_SUI_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_SUI)
+cfg_SUI_trigEma  = input.int(9,  "Trigger EMA",      minval=3, maxval=30,          group=grp_SUI)
+cfg_SUI_minBars  = input.int(16, "Min Bars Between", minval=5, maxval=50,          group=grp_SUI)
+cfg_SUI_conf     = input.float(75,"Confidence Min %",minval=30,maxval=95,step=5,   group=grp_SUI)
+cfg_SUI_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_SUI)
+cfg_SUI_ob       = input.float(1.5,"OB Level",       minval=0.3,maxval=3.0,step=0.1,group=grp_SUI)
+cfg_SUI_os       = input.float(-1.5,"OS Level",      minval=-3.0,maxval=-0.3,step=0.1,group=grp_SUI)
+cfg_SUI_aFloor   = input.float(0.0,"Alpha Floor",    minval=0.0,maxval=0.50,step=0.01,group=grp_SUI)
+cfg_SUI_htf      = input.bool(false,"Use HTF Filter",group=grp_SUI)
+cfg_SUI_trend    = input.bool(true,"Use Trend Filter",group=grp_SUI)
+cfg_SUI_vol      = input.bool(true,"Use Volume Filter",group=grp_SUI)
+
+// ─── TAO ───
+grp_TAO = "──── TAO ────"
+cfg_TAO_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_TAO)
+cfg_TAO_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_TAO)
+cfg_TAO_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_TAO)
+cfg_TAO_trigEma  = input.int(9,  "Trigger EMA",      minval=3, maxval=30,          group=grp_TAO)
+cfg_TAO_minBars  = input.int(16, "Min Bars Between", minval=5, maxval=50,          group=grp_TAO)
+cfg_TAO_conf     = input.float(75,"Confidence Min %",minval=30,maxval=95,step=5,   group=grp_TAO)
+cfg_TAO_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_TAO)
+cfg_TAO_ob       = input.float(1.5,"OB Level",       minval=0.3,maxval=3.0,step=0.1,group=grp_TAO)
+cfg_TAO_os       = input.float(-1.5,"OS Level",      minval=-3.0,maxval=-0.3,step=0.1,group=grp_TAO)
+cfg_TAO_aFloor   = input.float(0.0,"Alpha Floor",    minval=0.0,maxval=0.50,step=0.01,group=grp_TAO)
+cfg_TAO_htf      = input.bool(false,"Use HTF Filter",group=grp_TAO)
+cfg_TAO_trend    = input.bool(true,"Use Trend Filter",group=grp_TAO)
+cfg_TAO_vol      = input.bool(true,"Use Volume Filter",group=grp_TAO)
+
+// ─── ENA ───
+grp_ENA = "──── ENA ────"
+cfg_ENA_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_ENA)
+cfg_ENA_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_ENA)
+cfg_ENA_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_ENA)
+cfg_ENA_trigEma  = input.int(9,  "Trigger EMA",      minval=3, maxval=30,          group=grp_ENA)
+cfg_ENA_minBars  = input.int(16, "Min Bars Between", minval=5, maxval=50,          group=grp_ENA)
+cfg_ENA_conf     = input.float(75,"Confidence Min %",minval=30,maxval=95,step=5,   group=grp_ENA)
+cfg_ENA_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_ENA)
+cfg_ENA_ob       = input.float(1.5,"OB Level",       minval=0.3,maxval=3.0,step=0.1,group=grp_ENA)
+cfg_ENA_os       = input.float(-1.5,"OS Level",      minval=-3.0,maxval=-0.3,step=0.1,group=grp_ENA)
+cfg_ENA_aFloor   = input.float(0.0,"Alpha Floor",    minval=0.0,maxval=0.50,step=0.01,group=grp_ENA)
+cfg_ENA_htf      = input.bool(false,"Use HTF Filter",group=grp_ENA)
+cfg_ENA_trend    = input.bool(true,"Use Trend Filter",group=grp_ENA)
+cfg_ENA_vol      = input.bool(true,"Use Volume Filter",group=grp_ENA)
+
+// ─── LPT ───
+grp_LPT = "──── LPT ────"
+cfg_LPT_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_LPT)
+cfg_LPT_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_LPT)
+cfg_LPT_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_LPT)
+cfg_LPT_trigEma  = input.int(9,  "Trigger EMA",      minval=3, maxval=30,          group=grp_LPT)
+cfg_LPT_minBars  = input.int(16, "Min Bars Between", minval=5, maxval=50,          group=grp_LPT)
+cfg_LPT_conf     = input.float(75,"Confidence Min %",minval=30,maxval=95,step=5,   group=grp_LPT)
+cfg_LPT_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_LPT)
+cfg_LPT_ob       = input.float(1.5,"OB Level",       minval=0.3,maxval=3.0,step=0.1,group=grp_LPT)
+cfg_LPT_os       = input.float(-1.5,"OS Level",      minval=-3.0,maxval=-0.3,step=0.1,group=grp_LPT)
+cfg_LPT_aFloor   = input.float(0.0,"Alpha Floor",    minval=0.0,maxval=0.50,step=0.01,group=grp_LPT)
+cfg_LPT_htf      = input.bool(false,"Use HTF Filter",group=grp_LPT)
+cfg_LPT_trend    = input.bool(true,"Use Trend Filter",group=grp_LPT)
+cfg_LPT_vol      = input.bool(true,"Use Volume Filter",group=grp_LPT)
+
+// ─── RIVER ───
+grp_RIVER = "──── RIVER ────"
+cfg_RIVER_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_RIVER)
+cfg_RIVER_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_RIVER)
+cfg_RIVER_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_RIVER)
+cfg_RIVER_trigEma  = input.int(9,  "Trigger EMA",      minval=3, maxval=30,          group=grp_RIVER)
+cfg_RIVER_minBars  = input.int(16, "Min Bars Between", minval=5, maxval=50,          group=grp_RIVER)
+cfg_RIVER_conf     = input.float(75,"Confidence Min %",minval=30,maxval=95,step=5,   group=grp_RIVER)
+cfg_RIVER_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_RIVER)
+cfg_RIVER_ob       = input.float(1.5,"OB Level",       minval=0.3,maxval=3.0,step=0.1,group=grp_RIVER)
+cfg_RIVER_os       = input.float(-1.5,"OS Level",      minval=-3.0,maxval=-0.3,step=0.1,group=grp_RIVER)
+cfg_RIVER_aFloor   = input.float(0.0,"Alpha Floor",    minval=0.0,maxval=0.50,step=0.01,group=grp_RIVER)
+cfg_RIVER_htf      = input.bool(false,"Use HTF Filter",group=grp_RIVER)
+cfg_RIVER_trend    = input.bool(true,"Use Trend Filter",group=grp_RIVER)
+cfg_RIVER_vol      = input.bool(true,"Use Volume Filter",group=grp_RIVER)
+
+// ─── DEFAULT ───
+grp_DEF = "──── DEFAULT ────"
+cfg_DEF_alphaM   = input.string("Manual","Alpha Method",options=["Homodyne","MAMA","Autocorrelation","Kalman","Manual"],group=grp_DEF)
+cfg_DEF_manAlpha = input.float(0.42,"Manual Alpha",minval=0.05,maxval=0.80,step=0.01,group=grp_DEF)
+cfg_DEF_iTrendA  = input.float(0.09,"iTrend Alpha",minval=0.01,maxval=0.3,step=0.01,group=grp_DEF)
+cfg_DEF_trigEma  = input.int(9,  "Trigger EMA",      minval=3, maxval=30,          group=grp_DEF)
+cfg_DEF_minBars  = input.int(16, "Min Bars Between", minval=5, maxval=50,          group=grp_DEF)
+cfg_DEF_conf     = input.float(75,"Confidence Min %",minval=30,maxval=95,step=5,   group=grp_DEF)
+cfg_DEF_volMult  = input.float(1.5,"Volume Multiplier",minval=0.5,maxval=5.0,step=0.1,group=grp_DEF)
+cfg_DEF_ob       = input.float(1.5,"OB Level",       minval=0.3,maxval=3.0,step=0.1,group=grp_DEF)
+cfg_DEF_os       = input.float(-1.5,"OS Level",      minval=-3.0,maxval=-0.3,step=0.1,group=grp_DEF)
+cfg_DEF_aFloor   = input.float(0.0,"Alpha Floor",    minval=0.0,maxval=0.50,step=0.01,group=grp_DEF)
+cfg_DEF_htf      = input.bool(false,"Use HTF Filter",group=grp_DEF)
+cfg_DEF_trend    = input.bool(true,"Use Trend Filter",group=grp_DEF)
+cfg_DEF_vol      = input.bool(true,"Use Volume Filter",group=grp_DEF)
+
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║                     COIN DETECTION                              ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+string baseCur = syminfo.basecurrency
+string detectedCoin = switch baseCur
+    "BTC"   => "BTC"
+    "ETH"   => "ETH"
+    "SOL"   => "SOL"
+    "DOGE"  => "DOGE"
+    "BCH"   => "BCH"
+    "UNI"   => "UNI"
+    "PEPE"  => "PEPE"
+    "ONDO"  => "ONDO"
+    "BNB"   => "BNB"
+    "ADA"   => "ADA"
+    "AVAX"  => "AVAX"
+    "LTC"   => "LTC"
+    "SUI"   => "SUI"
+    "TAO"   => "TAO"
+    "ENA"   => "ENA"
+    "LPT"   => "LPT"
+    "RIVER" => "RIVER"
+    => "DEF"
+
+// ─── Per-coin Alpha Method ───
+string eAlphaMethod = switch detectedCoin
+    "BTC"   => cfg_BTC_alphaM
+    "ETH"   => cfg_ETH_alphaM
+    "SOL"   => cfg_SOL_alphaM
+    "DOGE"  => cfg_DOGE_alphaM
+    "BCH"   => cfg_BCH_alphaM
+    "UNI"   => cfg_UNI_alphaM
+    "PEPE"  => cfg_PEPE_alphaM
+    "ONDO"  => cfg_ONDO_alphaM
+    "BNB"   => cfg_BNB_alphaM
+    "ADA"   => cfg_ADA_alphaM
+    "AVAX"  => cfg_AVAX_alphaM
+    "LTC"   => cfg_LTC_alphaM
+    "SUI"   => cfg_SUI_alphaM
+    "TAO"   => cfg_TAO_alphaM
+    "ENA"   => cfg_ENA_alphaM
+    "LPT"   => cfg_LPT_alphaM
+    "RIVER" => cfg_RIVER_alphaM
+    => cfg_DEF_alphaM
+
+// ─── Per-coin Manual Alpha ───
+float eManualAlpha = switch detectedCoin
+    "BTC"   => cfg_BTC_manAlpha
+    "ETH"   => cfg_ETH_manAlpha
+    "SOL"   => cfg_SOL_manAlpha
+    "DOGE"  => cfg_DOGE_manAlpha
+    "BCH"   => cfg_BCH_manAlpha
+    "UNI"   => cfg_UNI_manAlpha
+    "PEPE"  => cfg_PEPE_manAlpha
+    "ONDO"  => cfg_ONDO_manAlpha
+    "BNB"   => cfg_BNB_manAlpha
+    "ADA"   => cfg_ADA_manAlpha
+    "AVAX"  => cfg_AVAX_manAlpha
+    "LTC"   => cfg_LTC_manAlpha
+    "SUI"   => cfg_SUI_manAlpha
+    "TAO"   => cfg_TAO_manAlpha
+    "ENA"   => cfg_ENA_manAlpha
+    "LPT"   => cfg_LPT_manAlpha
+    "RIVER" => cfg_RIVER_manAlpha
+    => cfg_DEF_manAlpha
+
+// ─── Per-coin iTrend Alpha ───
+float eITrendAlpha = switch detectedCoin
+    "BTC"   => cfg_BTC_iTrendA
+    "ETH"   => cfg_ETH_iTrendA
+    "SOL"   => cfg_SOL_iTrendA
+    "DOGE"  => cfg_DOGE_iTrendA
+    "BCH"   => cfg_BCH_iTrendA
+    "UNI"   => cfg_UNI_iTrendA
+    "PEPE"  => cfg_PEPE_iTrendA
+    "ONDO"  => cfg_ONDO_iTrendA
+    "BNB"   => cfg_BNB_iTrendA
+    "ADA"   => cfg_ADA_iTrendA
+    "AVAX"  => cfg_AVAX_iTrendA
+    "LTC"   => cfg_LTC_iTrendA
+    "SUI"   => cfg_SUI_iTrendA
+    "TAO"   => cfg_TAO_iTrendA
+    "ENA"   => cfg_ENA_iTrendA
+    "LPT"   => cfg_LPT_iTrendA
+    "RIVER" => cfg_RIVER_iTrendA
+    => cfg_DEF_iTrendA
+
+int eTrigEma = switch detectedCoin
+    "BTC"   => cfg_BTC_trigEma
+    "ETH"   => cfg_ETH_trigEma
+    "SOL"   => cfg_SOL_trigEma
+    "DOGE"  => cfg_DOGE_trigEma
+    "BCH"   => cfg_BCH_trigEma
+    "UNI"   => cfg_UNI_trigEma
+    "PEPE"  => cfg_PEPE_trigEma
+    "ONDO"  => cfg_ONDO_trigEma
+    "BNB"   => cfg_BNB_trigEma
+    "ADA"   => cfg_ADA_trigEma
+    "AVAX"  => cfg_AVAX_trigEma
+    "LTC"   => cfg_LTC_trigEma
+    "SUI"   => cfg_SUI_trigEma
+    "TAO"   => cfg_TAO_trigEma
+    "ENA"   => cfg_ENA_trigEma
+    "LPT"   => cfg_LPT_trigEma
+    "RIVER" => cfg_RIVER_trigEma
+    => cfg_DEF_trigEma
+
+int eMinBars = switch detectedCoin
+    "BTC"   => cfg_BTC_minBars
+    "ETH"   => cfg_ETH_minBars
+    "SOL"   => cfg_SOL_minBars
+    "DOGE"  => cfg_DOGE_minBars
+    "BCH"   => cfg_BCH_minBars
+    "UNI"   => cfg_UNI_minBars
+    "PEPE"  => cfg_PEPE_minBars
+    "ONDO"  => cfg_ONDO_minBars
+    "BNB"   => cfg_BNB_minBars
+    "ADA"   => cfg_ADA_minBars
+    "AVAX"  => cfg_AVAX_minBars
+    "LTC"   => cfg_LTC_minBars
+    "SUI"   => cfg_SUI_minBars
+    "TAO"   => cfg_TAO_minBars
+    "ENA"   => cfg_ENA_minBars
+    "LPT"   => cfg_LPT_minBars
+    "RIVER" => cfg_RIVER_minBars
+    => cfg_DEF_minBars
+
+float eCoinConf = switch detectedCoin
+    "BTC"   => cfg_BTC_conf
+    "ETH"   => cfg_ETH_conf
+    "SOL"   => cfg_SOL_conf
+    "DOGE"  => cfg_DOGE_conf
+    "BCH"   => cfg_BCH_conf
+    "UNI"   => cfg_UNI_conf
+    "PEPE"  => cfg_PEPE_conf
+    "ONDO"  => cfg_ONDO_conf
+    "BNB"   => cfg_BNB_conf
+    "ADA"   => cfg_ADA_conf
+    "AVAX"  => cfg_AVAX_conf
+    "LTC"   => cfg_LTC_conf
+    "SUI"   => cfg_SUI_conf
+    "TAO"   => cfg_TAO_conf
+    "ENA"   => cfg_ENA_conf
+    "LPT"   => cfg_LPT_conf
+    "RIVER" => cfg_RIVER_conf
+    => cfg_DEF_conf
+
+float eVolMult = switch detectedCoin
+    "BTC"   => cfg_BTC_volMult
+    "ETH"   => cfg_ETH_volMult
+    "SOL"   => cfg_SOL_volMult
+    "DOGE"  => cfg_DOGE_volMult
+    "BCH"   => cfg_BCH_volMult
+    "UNI"   => cfg_UNI_volMult
+    "PEPE"  => cfg_PEPE_volMult
+    "ONDO"  => cfg_ONDO_volMult
+    "BNB"   => cfg_BNB_volMult
+    "ADA"   => cfg_ADA_volMult
+    "AVAX"  => cfg_AVAX_volMult
+    "LTC"   => cfg_LTC_volMult
+    "SUI"   => cfg_SUI_volMult
+    "TAO"   => cfg_TAO_volMult
+    "ENA"   => cfg_ENA_volMult
+    "LPT"   => cfg_LPT_volMult
+    "RIVER" => cfg_RIVER_volMult
+    => cfg_DEF_volMult
+
+float eOB = switch detectedCoin
+    "BTC"   => cfg_BTC_ob
+    "ETH"   => cfg_ETH_ob
+    "SOL"   => cfg_SOL_ob
+    "DOGE"  => cfg_DOGE_ob
+    "BCH"   => cfg_BCH_ob
+    "UNI"   => cfg_UNI_ob
+    "PEPE"  => cfg_PEPE_ob
+    "ONDO"  => cfg_ONDO_ob
+    "BNB"   => cfg_BNB_ob
+    "ADA"   => cfg_ADA_ob
+    "AVAX"  => cfg_AVAX_ob
+    "LTC"   => cfg_LTC_ob
+    "SUI"   => cfg_SUI_ob
+    "TAO"   => cfg_TAO_ob
+    "ENA"   => cfg_ENA_ob
+    "LPT"   => cfg_LPT_ob
+    "RIVER" => cfg_RIVER_ob
+    => cfg_DEF_ob
+
+float eOS = switch detectedCoin
+    "BTC"   => cfg_BTC_os
+    "ETH"   => cfg_ETH_os
+    "SOL"   => cfg_SOL_os
+    "DOGE"  => cfg_DOGE_os
+    "BCH"   => cfg_BCH_os
+    "UNI"   => cfg_UNI_os
+    "PEPE"  => cfg_PEPE_os
+    "ONDO"  => cfg_ONDO_os
+    "BNB"   => cfg_BNB_os
+    "ADA"   => cfg_ADA_os
+    "AVAX"  => cfg_AVAX_os
+    "LTC"   => cfg_LTC_os
+    "SUI"   => cfg_SUI_os
+    "TAO"   => cfg_TAO_os
+    "ENA"   => cfg_ENA_os
+    "LPT"   => cfg_LPT_os
+    "RIVER" => cfg_RIVER_os
+    => cfg_DEF_os
+
+float eAFloor = switch detectedCoin
+    "BTC"   => cfg_BTC_aFloor
+    "ETH"   => cfg_ETH_aFloor
+    "SOL"   => cfg_SOL_aFloor
+    "DOGE"  => cfg_DOGE_aFloor
+    "BCH"   => cfg_BCH_aFloor
+    "UNI"   => cfg_UNI_aFloor
+    "PEPE"  => cfg_PEPE_aFloor
+    "ONDO"  => cfg_ONDO_aFloor
+    "BNB"   => cfg_BNB_aFloor
+    "ADA"   => cfg_ADA_aFloor
+    "AVAX"  => cfg_AVAX_aFloor
+    "LTC"   => cfg_LTC_aFloor
+    "SUI"   => cfg_SUI_aFloor
+    "TAO"   => cfg_TAO_aFloor
+    "ENA"   => cfg_ENA_aFloor
+    "LPT"   => cfg_LPT_aFloor
+    "RIVER" => cfg_RIVER_aFloor
+    => cfg_DEF_aFloor
+
+bool eUseHTF = switch detectedCoin
+    "BTC"   => cfg_BTC_htf
+    "ETH"   => cfg_ETH_htf
+    "SOL"   => cfg_SOL_htf
+    "DOGE"  => cfg_DOGE_htf
+    "BCH"   => cfg_BCH_htf
+    "UNI"   => cfg_UNI_htf
+    "PEPE"  => cfg_PEPE_htf
+    "ONDO"  => cfg_ONDO_htf
+    "BNB"   => cfg_BNB_htf
+    "ADA"   => cfg_ADA_htf
+    "AVAX"  => cfg_AVAX_htf
+    "LTC"   => cfg_LTC_htf
+    "SUI"   => cfg_SUI_htf
+    "TAO"   => cfg_TAO_htf
+    "ENA"   => cfg_ENA_htf
+    "LPT"   => cfg_LPT_htf
+    "RIVER" => cfg_RIVER_htf
+    => cfg_DEF_htf
+
+bool eUseTrend = switch detectedCoin
+    "BTC"   => cfg_BTC_trend
+    "ETH"   => cfg_ETH_trend
+    "SOL"   => cfg_SOL_trend
+    "DOGE"  => cfg_DOGE_trend
+    "BCH"   => cfg_BCH_trend
+    "UNI"   => cfg_UNI_trend
+    "PEPE"  => cfg_PEPE_trend
+    "ONDO"  => cfg_ONDO_trend
+    "BNB"   => cfg_BNB_trend
+    "ADA"   => cfg_ADA_trend
+    "AVAX"  => cfg_AVAX_trend
+    "LTC"   => cfg_LTC_trend
+    "SUI"   => cfg_SUI_trend
+    "TAO"   => cfg_TAO_trend
+    "ENA"   => cfg_ENA_trend
+    "LPT"   => cfg_LPT_trend
+    "RIVER" => cfg_RIVER_trend
+    => cfg_DEF_trend
+
+bool eUseVol = switch detectedCoin
+    "BTC"   => cfg_BTC_vol
+    "ETH"   => cfg_ETH_vol
+    "SOL"   => cfg_SOL_vol
+    "DOGE"  => cfg_DOGE_vol
+    "BCH"   => cfg_BCH_vol
+    "UNI"   => cfg_UNI_vol
+    "PEPE"  => cfg_PEPE_vol
+    "ONDO"  => cfg_ONDO_vol
+    "BNB"   => cfg_BNB_vol
+    "ADA"   => cfg_ADA_vol
+    "AVAX"  => cfg_AVAX_vol
+    "LTC"   => cfg_LTC_vol
+    "SUI"   => cfg_SUI_vol
+    "TAO"   => cfg_TAO_vol
+    "ENA"   => cfg_ENA_vol
+    "LPT"   => cfg_LPT_vol
+    "RIVER" => cfg_RIVER_vol
+    => cfg_DEF_vol
+
+float minConf = switch signalMode
+    "Conservative" => 80.0
+    "Standard"     => 50.0
+    "Aggressive"   => 30.0
+    => eCoinConf
+
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║              ALPHA METHOD 1: HOMODYNE DISCRIMINATOR             ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+f_homodyne() =>
+    var float _hd_smooth = 0.0
+    _hd_smooth := (4.0 * srcCyber + 3.0 * nz(srcCyber[1]) + 2.0 * nz(srcCyber[2]) + nz(srcCyber[3])) / 10.0
+
+    var float _hd_period = 15.0
+    float _hd_adj = 0.075 * nz(_hd_period[1], 15.0) + 0.54
+
+    var float _hd_det = 0.0
+    _hd_det := (0.0962 * _hd_smooth + 0.5769 * nz(_hd_smooth[2]) - 0.5769 * nz(_hd_smooth[4]) - 0.0962 * nz(_hd_smooth[6])) * _hd_adj
+
+    var float _hd_Q1 = 0.0
+    _hd_Q1 := (0.0962 * _hd_det + 0.5769 * nz(_hd_det[2]) - 0.5769 * nz(_hd_det[4]) - 0.0962 * nz(_hd_det[6])) * _hd_adj
+    float _hd_I1 = nz(_hd_det[3])
+
+    var float _hd_jI = 0.0
+    var float _hd_jQ = 0.0
+    _hd_jI := (0.0962 * _hd_I1 + 0.5769 * nz(_hd_I1[2]) - 0.5769 * nz(_hd_I1[4]) - 0.0962 * nz(_hd_I1[6])) * _hd_adj
+    _hd_jQ := (0.0962 * _hd_Q1 + 0.5769 * nz(_hd_Q1[2]) - 0.5769 * nz(_hd_Q1[4]) - 0.0962 * nz(_hd_Q1[6])) * _hd_adj
+
+    var float _hd_I2 = 0.0
+    var float _hd_Q2 = 0.0
+    _hd_I2 := 0.2 * (_hd_I1 - _hd_jQ) + 0.8 * nz(_hd_I2[1])
+    _hd_Q2 := 0.2 * (_hd_Q1 + _hd_jI) + 0.8 * nz(_hd_Q2[1])
+
+    var float _hd_Re = 0.0
+    var float _hd_Im = 0.0
+    _hd_Re := 0.2 * (_hd_I2 * nz(_hd_I2[1]) + _hd_Q2 * nz(_hd_Q2[1])) + 0.8 * nz(_hd_Re[1])
+    _hd_Im := 0.2 * (_hd_I2 * nz(_hd_Q2[1]) - _hd_Q2 * nz(_hd_I2[1])) + 0.8 * nz(_hd_Im[1])
+
+    float _hd_phaseAdv = (math.abs(_hd_Im) > 1e-10 and math.abs(_hd_Re) > 1e-10) ? math.atan(_hd_Im / _hd_Re) : 0.0
+    float _hd_rawPer = _hd_phaseAdv > 0.001 ? 2.0 * math.pi / _hd_phaseAdv : nz(_hd_period[1], 15.0)
+    _hd_rawPer := math.max(_hd_rawPer, 0.67 * nz(_hd_period[1], 15.0))
+    _hd_rawPer := math.min(_hd_rawPer, 1.5 * nz(_hd_period[1], 15.0))
+    _hd_rawPer := math.max(hdMinPeriod, math.min(hdMaxPeriod, _hd_rawPer))
+    _hd_period := 0.2 * _hd_rawPer + 0.8 * nz(_hd_period[1], 15.0)
+
+    var float _hd_smoothPeriod = 15.0
+    _hd_smoothPeriod := 0.33 * _hd_period + 0.67 * nz(_hd_smoothPeriod[1], 15.0)
+    _hd_smoothPeriod := math.max(hdMinPeriod, math.min(hdMaxPeriod, _hd_smoothPeriod))
+
+    float _alpha = 2.0 / (_hd_smoothPeriod + 1.0)
+    [_alpha, _hd_smoothPeriod]
+
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║              ALPHA METHOD 2: MAMA (Phase Rate)                  ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+f_mama() =>
+    float _m_adj = 1.665
+
+    var float _m_smooth = 0.0
+    _m_smooth := (4.0 * srcCyber + 3.0 * nz(srcCyber[1]) + 2.0 * nz(srcCyber[2]) + nz(srcCyber[3])) / 10.0
+
+    var float _m_det = 0.0
+    _m_det := (0.0962 * _m_smooth + 0.5769 * nz(_m_smooth[2]) - 0.5769 * nz(_m_smooth[4]) - 0.0962 * nz(_m_smooth[6])) * _m_adj
+
+    var float _m_Q1 = 0.0
+    _m_Q1 := (0.0962 * _m_det + 0.5769 * nz(_m_det[2]) - 0.5769 * nz(_m_det[4]) - 0.0962 * nz(_m_det[6])) * _m_adj
+    float _m_I1 = nz(_m_det[3])
+
+    var float _m_jI = 0.0
+    var float _m_jQ = 0.0
+    _m_jI := (0.0962 * _m_I1 + 0.5769 * nz(_m_I1[2]) - 0.5769 * nz(_m_I1[4]) - 0.0962 * nz(_m_I1[6])) * _m_adj
+    _m_jQ := (0.0962 * _m_Q1 + 0.5769 * nz(_m_Q1[2]) - 0.5769 * nz(_m_Q1[4]) - 0.0962 * nz(_m_Q1[6])) * _m_adj
+
+    var float _m_I2 = 0.0
+    var float _m_Q2 = 0.0
+    _m_I2 := 0.2 * (_m_I1 - _m_jQ) + 0.8 * nz(_m_I2[1])
+    _m_Q2 := 0.2 * (_m_Q1 + _m_jI) + 0.8 * nz(_m_Q2[1])
+
+    float _m_sumI = _m_I1 + nz(_m_I1[1])
+    float _m_sumQ = _m_Q1 + nz(_m_Q1[1])
+
+    var float _m_phase = 0.0
+    float _m_rawPhase = 0.0
+
+    if math.abs(_m_sumI) > 0.001
+        _m_rawPhase := math.atan(math.abs(_m_sumQ / _m_sumI)) * (180.0 / math.pi)
+    else
+        _m_rawPhase := 90.0
+
+    if _m_sumI < 0 and _m_sumQ > 0
+        _m_rawPhase := 180.0 - _m_rawPhase
+    else if _m_sumI < 0 and _m_sumQ < 0
+        _m_rawPhase := 180.0 + _m_rawPhase
+    else if _m_sumI > 0 and _m_sumQ < 0
+        _m_rawPhase := 360.0 - _m_rawPhase
+
+    _m_phase := _m_rawPhase
+
+    float _m_dp_raw = nz(_m_phase[1], 0.0) - _m_phase
+
+    if _m_dp_raw > 180.0
+        _m_dp_raw := _m_dp_raw - 360.0
+    if _m_dp_raw < -180.0
+        _m_dp_raw := _m_dp_raw + 360.0
+
+    float _m_dp = math.max(1.0, math.min(60.0, _m_dp_raw))
+
+    var float _m_dpSmooth = 5.0
+    _m_dpSmooth := 0.33 * _m_dp + 0.67 * nz(_m_dpSmooth[1], 5.0)
+    _m_dpSmooth := math.max(1.0, math.min(60.0, _m_dpSmooth))
+
+    float _m_alpha = mamaFastLimit / _m_dpSmooth
+    _m_alpha := math.max(mamaSlowLimit, math.min(mamaFastLimit, _m_alpha))
+
+    float _m_periodEst = math.max(2.0, (2.0 / _m_alpha) - 1.0)
+
+    [_m_alpha, _m_periodEst]
+
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║         ALPHA METHOD 3: AUTOCORRELATION PERIODOGRAM             ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+f_autocorrelation() =>
+    float _ac_a1 = (0.707 * 2.0 * math.pi) / acMaxPeriod
+    float _ac_alphaHP = (math.cos(_ac_a1) + math.sin(_ac_a1) - 1.0) / math.cos(_ac_a1)
+
+    var float _ac_hp = 0.0
+    _ac_hp := (1.0 - _ac_alphaHP / 2.0) * (1.0 - _ac_alphaHP / 2.0) * (srcCyber - 2.0 * nz(srcCyber[1]) + nz(srcCyber[2])) + 2.0 * (1.0 - _ac_alphaHP) * nz(_ac_hp[1]) - (1.0 - _ac_alphaHP) * (1.0 - _ac_alphaHP) * nz(_ac_hp[2])
+
+    float _ac_a1ss = math.exp(-1.414 * math.pi / acMinPeriod)
+    float _ac_b1ss = 2.0 * _ac_a1ss * math.cos(1.414 * math.pi / acMinPeriod)
+    float _ac_c2ss = _ac_b1ss
+    float _ac_c3ss = -_ac_a1ss * _ac_a1ss
+    float _ac_c1ss = 1.0 - _ac_c2ss - _ac_c3ss
+
+    var float _ac_filt = 0.0
+    _ac_filt := _ac_c1ss * (_ac_hp + nz(_ac_hp[1])) / 2.0 + _ac_c2ss * nz(_ac_filt[1]) + _ac_c3ss * nz(_ac_filt[2])
+
+    int _ac_step = math.max(1, (acMaxPeriod - acMinPeriod) / 10)
+
+    var float _ac_bestPeriod = 15.0
+    float _ac_maxCorr = 0.0
+    float _ac_bestP = _ac_bestPeriod
+
+    for p = acMinPeriod to acMaxPeriod by _ac_step
+        float _sx = 0.0
+        float _sy = 0.0
+        float _sxx = 0.0
+        float _syy = 0.0
+        float _sxy = 0.0
+        int _cnt = acAvgLength * p
+        for j = 0 to math.min(_cnt - 1, 199)
+            float _x = nz(_ac_filt[j])
+            float _y = nz(_ac_filt[j + p])
+            _sx += _x
+            _sy += _y
+            _sxx += _x * _x
+            _syy += _y * _y
+            _sxy += _x * _y
+        float _denom = (_cnt * _sxx - _sx * _sx) * (_cnt * _syy - _sy * _sy)
+        float _corr = _denom > 0 ? (_cnt * _sxy - _sx * _sy) / math.sqrt(_denom) : 0.0
+        if _corr > _ac_maxCorr
+            _ac_maxCorr := _corr
+            _ac_bestP := float(p)
+
+    _ac_bestPeriod := 0.25 * _ac_bestP + 0.75 * nz(_ac_bestPeriod[1], 15.0)
+    _ac_bestPeriod := math.max(acMinPeriod, math.min(acMaxPeriod, _ac_bestPeriod))
+
+    float _ac_alpha = 2.0 / (_ac_bestPeriod + 1.0)
+    [_ac_alpha, _ac_bestPeriod]
+
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║          ALPHA METHOD 4: KALMAN INNOVATION-BASED                ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+f_kalman() =>
+    var float _k_x = srcCyber
+    var float _k_P = 1.0
+    var float _k_innovEma = 0.001
+
+    float _k_xPred = _k_x
+    float _k_PPred = _k_P + kalProcessNoise
+
+    float _k_innovation = srcCyber - _k_xPred
+    float _k_S = _k_PPred + kalMeasNoise
+    float _k_K = _k_S > 1e-12 ? _k_PPred / _k_S : 0.5
+
+    _k_x := _k_xPred + _k_K * _k_innovation
+    _k_P := (1.0 - _k_K) * _k_PPred
+
+    float _k_absInnov = math.abs(_k_innovation)
+    _k_innovEma := 0.05 * _k_absInnov + 0.95 * nz(_k_innovEma[1], 0.001)
+
+    float _k_normInnov = _k_innovEma > 1e-12 ? _k_absInnov / _k_innovEma : 1.0
+    float _k_ratio = (_k_normInnov - 1.0) * kalSensitivity
+    float _k_sigmoid = 1.0 / (1.0 + math.exp(-_k_ratio))
+    float _k_alpha = kalAlphaSlow + (kalAlphaFast - kalAlphaSlow) * _k_sigmoid
+    _k_alpha := math.max(kalAlphaSlow, math.min(kalAlphaFast, _k_alpha))
+
+    float _k_period = math.max(2.0, (2.0 / _k_alpha) - 1.0)
+
+    [_k_alpha, _k_period]
+
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║                  ALPHA METHOD DISPATCHER                        ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+[_a_hd, _p_hd] = f_homodyne()
+[_a_ma, _p_ma] = f_mama()
+[_a_ac, _p_ac] = f_autocorrelation()
+[_a_kl, _p_kl] = f_kalman()
+
+float adaptiveAlpha = switch eAlphaMethod
+    "Homodyne"        => _a_hd
+    "MAMA"            => _a_ma
+    "Autocorrelation" => _a_ac
+    "Kalman"          => _a_kl
+    => eManualAlpha
+
+float dominantPeriod = switch eAlphaMethod
+    "Homodyne"        => _p_hd
+    "MAMA"            => _p_ma
+    "Autocorrelation" => _p_ac
+    "Kalman"          => _p_kl
+    => (2.0 / eManualAlpha) - 1.0
+
+if eAFloor > 0
+    adaptiveAlpha := math.max(adaptiveAlpha, eAFloor)
+
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║                  ADAPTIVE CYBER CYCLE + SUPPORT                 ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+f_ema(float src, int len) =>
+    float k = 2.0 / (len + 1)
+    var float out = 0.0
+    out := k * src + (1.0 - k) * nz(out[1])
+    out
+
+var float _mainSmooth = 0.0
+var float _mainCycle  = 0.0
+_mainSmooth := (srcCyber + 2.0 * nz(srcCyber[1]) + 2.0 * nz(srcCyber[2]) + nz(srcCyber[3])) / 6.0
+if bar_index < 7
+    _mainCycle := (srcCyber - 2.0 * nz(srcCyber[1]) + nz(srcCyber[2])) / 4.0
+else
+    float _a1 = (1.0 - 0.5 * adaptiveAlpha) * (1.0 - 0.5 * adaptiveAlpha)
+    float _a2 = 2.0 * (1.0 - adaptiveAlpha)
+    float _a3 = (1.0 - adaptiveAlpha) * (1.0 - adaptiveAlpha)
+    _mainCycle := _a1 * (_mainSmooth - 2.0 * nz(_mainSmooth[1]) + nz(_mainSmooth[2])) + _a2 * nz(_mainCycle[1]) - _a3 * nz(_mainCycle[2])
+
+float cyberCycle = _mainCycle
+float trigger    = f_ema(cyberCycle, eTrigEma)
+
+var float _iTrend = 0.0
+float _itA = eITrendAlpha
+_iTrend := (_itA - _itA * _itA / 4.0) * close + 0.5 * _itA * _itA * nz(close[1]) - (_itA - 0.75 * _itA * _itA) * nz(close[2]) + 2.0 * (1.0 - _itA) * nz(_iTrend[1]) - (1.0 - _itA) * (1.0 - _itA) * nz(_iTrend[2])
+float iTrend   = _iTrend
+bool bullTrend = iTrend > nz(iTrend[2])
+bool bearTrend = iTrend < nz(iTrend[2])
+
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║                     FISHER TRANSFORM                            ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+float _fH = ta.highest(cyberCycle, 10)
+float _fL = ta.lowest(cyberCycle, 10)
+float _fR = _fH - _fL
+float _fV = _fR != 0 ? 2.0 * ((cyberCycle - _fL) / _fR - 0.5) : 0.0
+_fV := math.max(-0.999, math.min(0.999, _fV))
+float _fRaw = 0.5 * math.log((1.0 + _fV) / (1.0 - _fV))
+var float fisherT = 0.0
+fisherT := 0.5 * _fRaw + 0.5 * nz(fisherT[1])
+bool fishRising  = fisherT > nz(fisherT[1])
+bool fishFalling = fisherT < nz(fisherT[1])
+
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║                     VOLUME FILTER                               ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+float volSma20 = ta.sma(volume, 20)
+float volRatio = volSma20 > 0 ? volume / volSma20 : 0
+bool  volumeOK = not eUseVol or volRatio >= eVolMult
+
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║                     HTF FILTER (4H)                             ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+float htfSrc = request.security(syminfo.tickerid, "240", hl2, lookahead=barmerge.lookahead_off)
+float htfCC  = request.security(syminfo.tickerid, "240", ta.ema(close, 10), lookahead=barmerge.lookahead_off)
+bool htfBullish    = not eUseHTF or htfSrc > htfCC
+bool htfBearish    = not eUseHTF or htfSrc < htfCC
+bool htfAlignBuy   = not eUseHTF or htfBullish
+bool htfAlignSell  = not eUseHTF or htfBearish
+
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║                     SIGNAL GENERATION                           ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+bool bullCross = ta.crossover(cyberCycle, trigger)
+bool bearCross = ta.crossunder(cyberCycle, trigger)
+
+bool inOB = cyberCycle > eOB
+bool inOS = cyberCycle < eOS
+
+float momentum3 = cyberCycle - nz(cyberCycle[3])
+
+float buyConf = 0.0
+buyConf += bullCross                          ? 20.0 : 0.0
+buyConf += (eUseTrend ? bullTrend : true)     ? 15.0 : 0.0
+buyConf += inOS                               ? 15.0 : 0.0
+buyConf += (eUseVol ? volumeOK : true)        ? 15.0 : 0.0
+buyConf += fishRising                         ? 10.0 : 0.0
+buyConf += momentum3 > 0                      ? 10.0 : 0.0
+buyConf += htfAlignBuy                        ? 15.0 : 0.0
+buyConf := math.min(buyConf, 100.0)
+
+float sellConf = 0.0
+sellConf += bearCross                         ? 20.0 : 0.0
+sellConf += (eUseTrend ? bearTrend : true)    ? 15.0 : 0.0
+sellConf += inOB                              ? 15.0 : 0.0
+sellConf += (eUseVol ? volumeOK : true)       ? 15.0 : 0.0
+sellConf += fishFalling                       ? 10.0 : 0.0
+sellConf += momentum3 < 0                     ? 10.0 : 0.0
+sellConf += htfAlignSell                      ? 15.0 : 0.0
+sellConf := math.min(sellConf, 100.0)
+
+var int lastSigBar = 0
+bool barFilter = bar_index - lastSigBar >= eMinBars
+
+bool buySignal  = bullCross and buyConf  >= minConf and barFilter and (eUseTrend ? bullTrend : true) and htfAlignBuy
+bool sellSignal = bearCross and sellConf >= minConf and barFilter and (eUseTrend ? bearTrend : true) and htfAlignSell
+
+if buySignal or sellSignal
+    lastSigBar := bar_index
+
+
+/// ╔══════════════════════════════════════════════════════════════════╗
+// ║                     PRICE FORMAT HELPER                         ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+f_formatPrice(float p) =>
+    string result = ""
+    if p >= 10000
+        result := str.tostring(p, "#")
+    else if p >= 100
+        result := str.tostring(p, "#.#")
+    else if p >= 1
+        result := str.tostring(p, "#.##")
+    else if p >= 0.01
+        result := str.tostring(p, "#.####")
+    else
+        result := str.tostring(p, "#.######")
+    result
+
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║                     VISUALIZATION                               ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+grp_viz         = "══════ VISUALIZATION ══════"
+showITrend      = input.bool(true,  "Show iTrend",        group=grp_viz)
+showCloud       = input.bool(false, "Show Cloud",         group=grp_viz)  // ← default OFF
+showBuySignals  = input.bool(true,  "Show BUY Signals",   group=grp_viz)
+showSellSignals = input.bool(true,  "Show SELL Signals",  group=grp_viz)
+showInfoTable   = input.bool(true,  "Show Info Table",    group=grp_viz)
+cloudAtrLen     = input.int(14,     "Cloud ATR Len",      group=grp_viz)
+cloudAtrMult    = input.float(1.5,  "Cloud ATR Mult",     group=grp_viz)
+
+// ── Paleta profesional ──
+color bullColor    = #00E5A0
+color bearColor    = #FF4560
+color bullLbl      = #003D2B
+color bearLbl      = #3D0010
+color cloudBull    = color.new(#00E5A0, 88)
+color cloudBear    = color.new(#FF4560, 88)
+
+float atr        = ta.atr(cloudAtrLen)
+float cloudUpper = iTrend + atr * cloudAtrMult
+float cloudLower = iTrend - atr * cloudAtrMult
+
+// iTrend line
+plot(showITrend ? iTrend : na, "ITrend",
+     color     = bullTrend ? bullColor : bearColor,
+     linewidth  = 1)
+
+// Cloud sutil
+pU = plot(showCloud ? cloudUpper : na, "Cloud Upper", color=color.new(color.gray, 95))
+pL = plot(showCloud ? cloudLower : na, "Cloud Lower", color=color.new(color.gray, 95))
+pM = plot(showCloud ? iTrend     : na, "Cloud Mid",   color=na)
+fill(pU, pM, color=bullTrend ? cloudBull : cloudBear, title="Upper Fill")
+fill(pM, pL, color=bullTrend ? cloudBull : cloudBear, title="Lower Fill")
+
+// ── Captura de precio ──
+varip float capturedBuyPrice  = na
+varip float capturedSellPrice = na
+varip bool  buyPriceLocked    = false
+varip bool  sellPriceLocked   = false
+
+if barstate.isnew
+    capturedBuyPrice  := na
+    capturedSellPrice := na
+    buyPriceLocked    := false
+    sellPriceLocked   := false
+
+if buySignal and not buyPriceLocked
+    capturedBuyPrice := barstate.ishistory ? srcCyber : close
+    buyPriceLocked   := true
+
+if sellSignal and not sellPriceLocked
+    capturedSellPrice := barstate.ishistory ? srcCyber : close
+    sellPriceLocked   := true
+
+// ── Labels elegantes con offset dinámico ──
+float offsetMult = input.float(1.5, "Label Offset (ATR mult)", minval=0.5, maxval=5.0, step=0.5, group=grp_viz)
+
+// BUY
+if showBuySignals and buySignal
+    float dp    = not na(capturedBuyPrice) ? capturedBuyPrice : srcCyber
+    string pStr = f_formatPrice(dp)
+    string live = barstate.isrealtime ? "·" : ""
+    label.new(
+         bar_index, low - atr * offsetMult,
+         "▲ " + pStr + live,
+         style     = label.style_label_up,
+         color     = color.new(bullColor, 15),
+         textcolor = color.white,
+         size      = size.small,
+         tooltip   = "BUY  conf=" + str.tostring(buyConf, "#") + "%")
+
+// SELL
+if showSellSignals and sellSignal
+    float dp    = not na(capturedSellPrice) ? capturedSellPrice : srcCyber
+    string pStr = f_formatPrice(dp)
+    string live = barstate.isrealtime ? "·" : ""
+    label.new(
+         bar_index, high + atr * offsetMult,
+         "▼ " + pStr + live,
+         style     = label.style_label_down,
+         color     = color.new(bearColor, 15),
+         textcolor = color.white,
+         size      = size.small,
+         tooltip   = "SELL  conf=" + str.tostring(sellConf, "#") + "%")
+
+// Weak signals
+bool weakBuy  = bullCross and buyConf  >= 30 and buyConf  < minConf and barFilter and htfAlignBuy
+bool weakSell = bearCross and sellConf >= 30 and sellConf < minConf and barFilter and htfAlignSell
+plotshape(showBuySignals  and weakBuy,  "Weak Buy",
+     shape.circle, location.belowbar, color.new(bullColor, 65), size=size.tiny, offset=0)
+plotshape(showSellSignals and weakSell, "Weak Sell",
+     shape.circle, location.abovebar, color.new(bearColor, 65), size=size.tiny, offset=0)
+
+// Barcolor sutil
+barcolor(cyberCycle > trigger and bullTrend ? color.new(bullColor, 75) :
+         cyberCycle < trigger and bearTrend  ? color.new(bearColor, 75) : na)
+
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║                  INFO TABLE — diseño limpio                     ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+if showInfoTable and barstate.islast
+    var table t = table.new(
+         position.top_right, 2, 11,
+         bgcolor       = color.new(#0D0D0D, 60),
+         border_width  = 1,
+         border_color  = color.new(color.gray, 70),
+         frame_width   = 1,
+         frame_color   = color.new(color.gray, 50))
+
+    color hdrCol  = #A0A0B0
+    color valCol  = #E8E8F0
+    color accentY = #FFD166
+    color accentG = bullColor
+    color accentR = bearColor
+
+    int row = 0
+
+    table.cell(t, 0, row, "METHOD", text_color=hdrCol,  text_size=size.tiny,  bgcolor=color.new(#1A1A2E, 40))
+    table.cell(t, 1, row,
+         eAlphaMethod + "  α=" + str.tostring(adaptiveAlpha, "#.###") + "  P=" + str.tostring(dominantPeriod, "#.#"),
+         text_color=accentY, text_size=size.tiny, bgcolor=color.new(#1A1A2E, 40))
+    row += 1
+
+    table.cell(t, 0, row, "COIN",      text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row,
+         detectedCoin + (eAFloor > 0 ? "  fl=" + str.tostring(eAFloor,"#.##") : "") + "  iT=" + str.tostring(eITrendAlpha,"#.##"),
+         text_color=accentY, text_size=size.tiny)
+    row += 1
+
+    table.cell(t, 0, row, "CYCLE",     text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row, str.tostring(cyberCycle, "#.####"),
+         text_color = cyberCycle > 0 ? accentG : accentR, text_size=size.tiny)
+    row += 1
+
+    string trendStr = bullTrend ? "▲ BULL" : bearTrend ? "▼ BEAR" : "── FLAT"
+    table.cell(t, 0, row, "TREND",     text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row, trendStr + (eUseTrend ? "" : "  [off]"),
+         text_color = bullTrend ? accentG : bearTrend ? accentR : color.gray, text_size=size.tiny)
+    row += 1
+
+    string zoneStr = inOB ? "⬆ OB" : inOS ? "⬇ OS" : "○ NEUTRAL"
+    table.cell(t, 0, row, "ZONE",      text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row, zoneStr,
+         text_color = inOB ? accentR : inOS ? accentG : color.gray, text_size=size.tiny)
+    row += 1
+
+    table.cell(t, 0, row, "DIRECTION", text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row, cyberCycle > trigger ? "▲ BULLISH" : "▼ BEARISH",
+         text_color = cyberCycle > trigger ? accentG : accentR, text_size=size.tiny)
+    row += 1
+
+    float cConf = bullCross ? buyConf : bearCross ? sellConf : 0
+    string confStr = cConf > 0 ? str.tostring(cConf,"#") + "%  (min " + str.tostring(minConf,"#") + "%)" : "---"
+    table.cell(t, 0, row, "CONF",      text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row, confStr,
+         text_color = cConf >= minConf ? accentG : cConf >= 30 ? accentY : color.gray, text_size=size.tiny)
+    row += 1
+
+    table.cell(t, 0, row, eUseVol ? "VOLUME" : "VOL [off]", text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row, eUseVol ? (volumeOK ? "✔ OK" : "✘ LOW") : "---",
+         text_color = volumeOK ? accentG : accentR, text_size=size.tiny)
+    row += 1
+
+    table.cell(t, 0, row, eUseHTF ? "HTF 4H" : "HTF [off]", text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row, eUseHTF ? (htfBullish ? "▲ BULL" : "▼ BEAR") : "---",
+         text_color = htfBullish ? accentG : accentR, text_size=size.tiny)
+    row += 1
+
+    table.cell(t, 0, row, "CONFIG",    text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row,
+         "T=" + str.tostring(eTrigEma) + "  B=" + str.tostring(eMinBars) +
+         "  OB=" + str.tostring(eOB,"#.#") + "  OS=" + str.tostring(eOS,"#.#"),
+         text_color=valCol, text_size=size.tiny)
+    row += 1
+
+    table.cell(t, 0, row, "ALL α",     text_color=hdrCol, text_size=size.tiny)
+    table.cell(t, 1, row,
+         "HD=" + str.tostring(_a_hd,"#.###") + "  MA=" + str.tostring(_a_ma,"#.###") +
+         "  AC=" + str.tostring(_a_ac,"#.###") + "  KL=" + str.tostring(_a_kl,"#.###"),
+         text_color=color.new(color.gray,20), text_size=size.tiny)
+
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║                     ALERTS                                      ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+alertcondition(buySignal,  "Buy",   "CC v6.2: BUY Signal")
+alertcondition(sellSignal, "Sell",  "CC v6.2: SELL Signal")
+alertcondition(bullCross,  "Bull Cross", "CC v6.2: Bull Cross (unfiltered)")
+alertcondition(bearCross,  "Bear Cross", "CC v6.2: Bear Cross (unfiltered)")
