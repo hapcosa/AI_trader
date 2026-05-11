@@ -264,6 +264,51 @@ INDEX_HTML = """
       padding: 0 14px;
       font-size: 13px;
     }
+    .ai-launch {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--line);
+      flex-wrap: wrap;
+    }
+    .ai-launch-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-right: 4px;
+    }
+    .ai-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.08s ease, box-shadow 0.12s ease;
+    }
+    .ai-btn:hover {
+      box-shadow: 0 4px 12px rgba(23, 32, 38, 0.10);
+      transform: translateY(-1px);
+    }
+    .ai-btn svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+    .ai-btn.chatgpt:hover { border-color: #10a37f; }
+    .ai-btn.claude:hover  { border-color: #cc785c; }
+    .ai-btn.gemini:hover  { border-color: #4285f4; }
+    .ai-btn.deepseek:hover{ border-color: #4d6bfe; }
     .tf-rows { display: flex; flex-wrap: wrap; gap: 8px; }
     .tf-row {
       display: inline-flex;
@@ -489,6 +534,25 @@ INDEX_HTML = """
         <button id="copy-btn" class="copy-btn" type="button">Copiar</button>
       </div>
       <textarea id="prompt-textarea" class="prompt-textarea" readonly></textarea>
+      <div class="ai-launch">
+        <span class="ai-launch-label">Abrir en IA externa:</span>
+        <button class="ai-btn chatgpt" data-ai="chatgpt" type="button" title="ChatGPT — prefill soportado">
+          <svg viewBox="0 0 24 24" fill="#10a37f" xmlns="http://www.w3.org/2000/svg"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/></svg>
+          <span>ChatGPT</span>
+        </button>
+        <button class="ai-btn claude" data-ai="claude" type="button" title="Claude — prefill soportado">
+          <svg viewBox="0 0 24 24" fill="#cc785c" xmlns="http://www.w3.org/2000/svg"><path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128h-.23l-.79-.048-2.698-.073-2.34-.097-2.265-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.892.686 1.908 1.476 2.491 1.833.365.304.146-.103.018-.072-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V8.91l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.438.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.473.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.066-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z"/></svg>
+          <span>Claude</span>
+        </button>
+        <button class="ai-btn gemini" data-ai="gemini" type="button" title="Gemini — sin prefill, prompt en portapapeles">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="gemG" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#4285f4"/><stop offset="50%" stop-color="#9b72cb"/><stop offset="100%" stop-color="#d96570"/></linearGradient></defs><path fill="url(#gemG)" d="M12 24A14.304 14.304 0 0 0 0 12 14.304 14.304 0 0 0 12 0a14.305 14.305 0 0 0 12 12 14.305 14.305 0 0 0-12 12"/></svg>
+          <span>Gemini</span>
+        </button>
+        <button class="ai-btn deepseek" data-ai="deepseek" type="button" title="DeepSeek — sin prefill, prompt en portapapeles">
+          <svg viewBox="0 0 24 24" fill="#4d6bfe" xmlns="http://www.w3.org/2000/svg"><path d="M23.748 4.482c-.254-.124-.364.113-.512.234-.051.039-.094.09-.137.136-.372.397-.806.657-1.373.626-.829-.046-1.537.214-2.163.848-.133-.782-.575-1.248-1.247-1.548-.352-.156-.708-.311-.955-.65-.172-.241-.219-.51-.305-.774-.055-.16-.11-.323-.293-.35-.2-.031-.278.136-.356.276-.313.572-.434 1.202-.422 1.84.027 1.436.633 2.58 1.838 3.393.137.093.172.187.129.323-.082.28-.18.552-.266.833-.055.179-.137.217-.329.14a5.526 5.526 0 0 1-1.736-1.18c-.857-.828-1.631-1.742-2.597-2.458a11.365 11.365 0 0 0-.689-.471c-.985-.957.13-1.743.388-1.836.27-.098.093-.432-.779-.428-.872.004-1.67.295-2.687.684a3.055 3.055 0 0 1-.465.137 9.597 9.597 0 0 0-2.883-.102c-1.885.21-3.39 1.102-4.497 2.623C.082 8.606-.231 10.684.152 12.85c.403 2.284 1.569 4.175 3.36 5.653 1.858 1.533 3.997 2.284 6.438 2.14 1.482-.085 3.133-.284 4.994-1.86.47.234.962.327 1.78.397.63.059 1.236-.03 1.705-.128.735-.156.684-.837.419-.961-2.155-1.004-1.682-.595-2.113-.926 1.096-1.296 2.746-2.642 3.392-7.003.05-.347.007-.565 0-.845-.004-.17.035-.237.23-.256a4.173 4.173 0 0 0 1.545-.475c1.396-.763 1.96-2.015 2.093-3.517.02-.23-.004-.467-.247-.588zM11.581 18c-2.089-1.642-3.102-2.183-3.52-2.16-.392.024-.321.471-.235.763.09.288.207.486.371.739.114.167.192.416-.113.603-.673.416-1.842-.14-1.897-.167-1.361-.802-2.5-1.86-3.301-3.307-.774-1.393-1.224-2.887-1.298-4.482-.02-.386.093-.522.477-.592a4.696 4.696 0 0 1 1.529-.039c2.132.312 3.946 1.265 5.468 2.774.868.86 1.525 1.887 2.202 2.891.72 1.066 1.494 2.082 2.48 2.914.348.292.625.514.891.677-.802.09-2.14.11-3.054-.614zm1-6.44a.306.306 0 0 1 .415-.287.302.302 0 0 1 .2.288.306.306 0 0 1-.31.307.303.303 0 0 1-.304-.308zm3.11 1.596c-.2.081-.399.151-.59.16a1.245 1.245 0 0 1-.798-.254c-.274-.23-.47-.358-.552-.758a1.73 1.73 0 0 1 .016-.588c.07-.327-.008-.537-.239-.727-.187-.156-.426-.199-.688-.199a.559.559 0 0 1-.254-.078c-.11-.054-.2-.19-.114-.358.028-.054.16-.186.192-.21.356-.202.767-.136 1.146.016.352.144.618.408 1.001.782.391.452.462.577.685.916.176.265.336.537.445.848.067.195-.019.354-.25.451z"/></svg>
+          <span>DeepSeek</span>
+        </button>
+      </div>
     </div>
 
     <div id="ai-panel" class="ai-response-panel" style="display:none">
@@ -660,6 +724,54 @@ INDEX_HTML = """
         statusEl.className = "status error";
         statusEl.textContent = error.message;
       } finally { setLoading(false); }
+    });
+
+    const AI_URLS = {
+      chatgpt:  { base: "https://chatgpt.com/",          prefill: true  },
+      claude:   { base: "https://claude.ai/new",         prefill: true  },
+      gemini:   { base: "https://gemini.google.com/app", prefill: false },
+      deepseek: { base: "https://chat.deepseek.com/",    prefill: false }
+    };
+    // Limite practico de URL — mas alla de esto, omitir prefill (usar solo portapapeles)
+    const URL_PREFILL_LIMIT = 6000;
+
+    async function copyToClipboard(text) {
+      try { await navigator.clipboard.writeText(text); return true; }
+      catch (_) {
+        try {
+          promptTextarea.select();
+          document.execCommand("copy");
+          return true;
+        } catch (__) { return false; }
+      }
+    }
+
+    document.querySelectorAll(".ai-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const prompt = promptTextarea.value;
+        if (!prompt) {
+          statusEl.className = "status error";
+          statusEl.textContent = "Genera el prompt primero (Mostrar prompt).";
+          return;
+        }
+        const ai = btn.dataset.ai;
+        const cfg = AI_URLS[ai];
+        if (!cfg) return;
+        const copied = await copyToClipboard(prompt);
+        let url = cfg.base;
+        if (cfg.prefill) {
+          const encoded = encodeURIComponent(prompt);
+          if (encoded.length <= URL_PREFILL_LIMIT) {
+            url += "?q=" + encoded;
+          }
+        }
+        window.open(url, "_blank", "noopener,noreferrer");
+        statusEl.className = "status done";
+        const note = cfg.prefill
+          ? "Prompt rellenado en " + ai + ". Pulsa Enter para enviar."
+          : (copied ? "Prompt copiado. Pega con Ctrl+V en " + ai + "." : "Abre " + ai + " — copia manualmente del cuadro.");
+        statusEl.textContent = note;
+      });
     });
 
     copyBtn.addEventListener("click", async () => {
