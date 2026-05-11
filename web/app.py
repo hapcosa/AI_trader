@@ -57,7 +57,7 @@ INDEX_HTML = """
   <style>
     :root {
       color-scheme: light;
-      --bg: #f6f7f9;
+      --bg: #75bacc;
       --panel: #ffffff;
       --ink: #172026;
       --muted: #65717a;
@@ -377,7 +377,7 @@ INDEX_HTML = """
     .side-gif {
       position: fixed;
       left: 16px;
-      bottom: 16px;
+      top: 16px;
       width: 160px;
       height: auto;
       z-index: 1;
