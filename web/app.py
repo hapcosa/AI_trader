@@ -201,7 +201,7 @@ INDEX_HTML = """
     .avatar-wrap {
       position: relative;
       width: 100%;
-      aspect-ratio: 1 / 1.05;
+      aspect-ratio: 0.76 / 1;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -456,7 +456,9 @@ INDEX_HTML = """
       flex-direction: column;
       gap: 6px;
       min-width: 0;
+      position: relative;
     }
+    .combo-field { z-index: 30; }
     .field.wide { grid-column: span 12; }
     .field.mid { grid-column: span 6; }
     label,
@@ -524,6 +526,32 @@ INDEX_HTML = """
     .asset-icon.ltc { background: linear-gradient(135deg, #345d9d, #b8c8e8); color: #fff; }
     .asset-icon.sui { background: linear-gradient(135deg, #6fbcf0, #d9f4ff); }
     .asset-icon.ton { background: linear-gradient(135deg, #0098ea, #8bdcff); }
+    .asset-icon.xau,
+    .asset-icon.xaut,
+    .asset-icon.paxg { background: linear-gradient(135deg, #d4af37, #fff2a6); }
+    .asset-icon.xag,
+    .asset-icon.xpd,
+    .asset-icon.xpt { background: linear-gradient(135deg, #b8c2cc, #f4fbff); }
+    .asset-icon.copper { background: linear-gradient(135deg, #b87333, #ffbf75); }
+    .asset-icon.cl,
+    .asset-icon.bz,
+    .asset-icon.natgas,
+    .asset-icon.xom,
+    .asset-icon.oxy { background: linear-gradient(135deg, #1fd06f, #f4d35e); }
+    .asset-icon.spy,
+    .asset-icon.qqq,
+    .asset-icon.tqqq,
+    .asset-icon.sqqq,
+    .asset-icon.soxl,
+    .asset-icon.soxs { background: linear-gradient(135deg, #00e5ff, #b266ff); color: #fff; }
+    .asset-icon.nvda,
+    .asset-icon.tsla,
+    .asset-icon.aapl,
+    .asset-icon.googl,
+    .asset-icon.amzn,
+    .asset-icon.meta,
+    .asset-icon.msft,
+    .asset-icon.amd { background: linear-gradient(135deg, #16213e, #00e5ff); color: #fff; }
     input[type="text"],
     input[type="number"],
     input[type="password"],
@@ -546,8 +574,8 @@ INDEX_HTML = """
     input:focus, select:focus {
       outline: none;
       border-color: var(--accent);
-      background: rgba(0, 229, 255, 0.05);
-      box-shadow: 0 0 0 1px var(--accent), 0 0 16px rgba(0, 229, 255, 0.35);
+      background: rgba(0, 229, 255, 0.035);
+      box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.72), 0 0 8px rgba(0, 229, 255, 0.18);
     }
     select {
       appearance: none;
@@ -728,22 +756,22 @@ INDEX_HTML = """
       box-shadow: none;
     }
     /* ---------- COMBO (símbolo) ---------- */
-    .combo { position: relative; }
+    .combo { position: relative; z-index: 40; }
     .combo-list {
       position: absolute;
       top: calc(100% + 4px);
       left: 0;
       right: 0;
-      z-index: 50;
+      z-index: 999;
       max-height: 280px;
       overflow-y: auto;
       margin: 0;
       padding: 4px 0;
       list-style: none;
-      background: #061224;
-      border: 1px solid var(--accent);
+      background: rgba(6, 18, 36, 0.98);
+      border: 1px solid rgba(0, 229, 255, 0.78);
       border-radius: 3px;
-      box-shadow: 0 0 24px rgba(0,229,255,0.35), 0 12px 30px rgba(0,0,0,0.6);
+      box-shadow: 0 0 10px rgba(0,229,255,0.20), 0 16px 34px rgba(0,0,0,0.78);
     }
     .combo-list li {
       display: flex;
@@ -1079,7 +1107,7 @@ INDEX_HTML = """
       <div class="avatar-wrap" aria-hidden="true">
         <span class="corner tl"></span><span class="corner tr"></span>
         <span class="corner bl"></span><span class="corner br"></span>
-        <img class="avatar-gif" src="/static/jesus.gif" alt="">
+        <img class="avatar-gif" src="/static/jesus-cyber-dance.gif" alt="">
       </div>
 
       <div class="nucleo">
@@ -1299,7 +1327,14 @@ INDEX_HTML = """
       "PIEVERSE/USDT","PIPPIN/USDT","PI/USDT","PIXEL/USDT","PLUME/USDT","PNUT/USDT","POL/USDT",
       "POLYX/USDT","POPCAT/USDT","POWER/USDT","POWR/USDT","PROVE/USDT","PUMP/USDT","PUNDIX/USDT",
       "PYTH/USDT","RAVE/USDT","RAY/USDT","RENDER/USDT","RIVER/USDT","RUNE/USDT","SAHARA/USDT",
-      "SIREN/USDT","STO/USDT","TAO/USDT","TIA/USDT","TRUMP/USDT","XLM/USDT","XMR/USDT","ZEC/USDT"
+      "SIREN/USDT","STO/USDT","TAO/USDT","TIA/USDT","TRUMP/USDT","XLM/USDT","XMR/USDT","ZEC/USDT",
+      "XAU/USDT","XAG/USDT","XPD/USDT","XPT/USDT","COPPER/USDT","CL/USDT","BZ/USDT","NATGAS/USDT",
+      "SPY/USDT","QQQ/USDT","TQQQ/USDT","SQQQ/USDT","SOXL/USDT","SOXS/USDT",
+      "NVDA/USDT","TSLA/USDT","AAPL/USDT","GOOGL/USDT","AMZN/USDT","META/USDT","MSFT/USDT",
+      "AMD/USDT","AVGO/USDT","TSM/USDT","ASML/USDT","ARM/USDT","INTC/USDT","MRVL/USDT",
+      "PLTR/USDT","MSTR/USDT","COIN/USDT","HOOD/USDT","GME/USDT","RDDT/USDT","NFLX/USDT",
+      "ORCL/USDT","GE/USDT","BA/USDT","WMT/USDT","COST/USDT","MCD/USDT","UNH/USDT","LLY/USDT",
+      "BABA/USDT","JD/USDT","FUTU/USDT","RKLB/USDT","OKLO/USDT","IONQ/USDT","XOM/USDT","OXY/USDT"
     ].sort();
 
     const symbolInput  = document.querySelector("#symbol-search");
@@ -1314,8 +1349,23 @@ INDEX_HTML = """
       LINK: "L", DOT: "D", MATIC: "M", POL: "P", UNI: "U", ATOM: "A", LTC: "L", BCH: "B",
       NEAR: "N", OP: "O", ARB: "A", INJ: "I", TRX: "T", APT: "A", SUI: "S", TON: "T",
       PEPE: "P", SHIB: "S", ETC: "E", FIL: "F", AAVE: "A", ONDO: "O", RENDER: "R",
-      RUNE: "R", TAO: "T", TIA: "T", XLM: "X", XMR: "X", ZEC: "Z"
+      RUNE: "R", TAO: "T", TIA: "T", XLM: "X", XMR: "X", ZEC: "Z",
+      XAU: "Au", XAG: "Ag", XPD: "Pd", XPT: "Pt", COPPER: "Cu", CL: "Oil", BZ: "Br", NATGAS: "Gas",
+      SPY: "SP", QQQ: "Q", NVDA: "NV", TSLA: "TS", AAPL: "AP", GOOGL: "GO", AMZN: "AM", META: "ME",
+      MSFT: "MS", AMD: "AM", AVGO: "AV", TSM: "TS", ASML: "AS", ARM: "AR", INTC: "IN", PLTR: "PL",
+      MSTR: "M", COIN: "C", HOOD: "H", NFLX: "NF", ORCL: "OR", GE: "GE", BA: "BA", XOM: "XO", OXY: "OX"
     };
+
+    const BITGET_RWA_SYMBOLS = new Set([
+      "PAXG/USDT","XAUT/USDT","XAU/USDT","XAG/USDT","XPD/USDT","XPT/USDT","COPPER/USDT",
+      "CL/USDT","BZ/USDT","NATGAS/USDT","SPY/USDT","QQQ/USDT","TQQQ/USDT","SQQQ/USDT",
+      "SOXL/USDT","SOXS/USDT","NVDA/USDT","TSLA/USDT","AAPL/USDT","GOOGL/USDT","AMZN/USDT",
+      "META/USDT","MSFT/USDT","AMD/USDT","AVGO/USDT","TSM/USDT","ASML/USDT","ARM/USDT",
+      "INTC/USDT","MRVL/USDT","PLTR/USDT","MSTR/USDT","COIN/USDT","HOOD/USDT","GME/USDT",
+      "RDDT/USDT","NFLX/USDT","ORCL/USDT","GE/USDT","BA/USDT","WMT/USDT","COST/USDT",
+      "MCD/USDT","UNH/USDT","LLY/USDT","BABA/USDT","JD/USDT","FUTU/USDT","RKLB/USDT",
+      "OKLO/USDT","IONQ/USDT","XOM/USDT","OXY/USDT"
+    ]);
 
     function assetBase(sym) {
       return (sym.split("/")[0] || sym).trim().toUpperCase();
@@ -1336,6 +1386,20 @@ INDEX_HTML = """
       icon.textContent = assetIconText(sym);
       icon.setAttribute("aria-hidden", "true");
       return icon;
+    }
+
+    function normalizeSymbolInput(value) {
+      const raw = (value || "").trim().toUpperCase();
+      if (!raw) return raw;
+      if (raw.includes("/")) return raw;
+      if (raw.endsWith("USDT")) return `${raw.slice(0, -4)}/USDT`;
+      return raw;
+    }
+
+    function syncMarketSource(sym) {
+      if (!BITGET_RWA_SYMBOLS.has(sym)) return;
+      form.source.value = "ccxt";
+      form.exchange.value = "bitget";
     }
 
     function updateSelectedSymbolIcon(sym) {
@@ -1380,6 +1444,7 @@ INDEX_HTML = """
       symbolInput.value = sym;
       symbolHidden.value = sym;
       updateSelectedSymbolIcon(sym);
+      syncMarketSource(sym);
       symbolList.hidden = true;
     }
 
@@ -1390,7 +1455,9 @@ INDEX_HTML = """
     symbolInput.addEventListener("input", () => {
       filterSymbols(symbolInput.value);
       symbolList.hidden = false;
-      symbolHidden.value = symbolInput.value.toUpperCase();
+      symbolHidden.value = normalizeSymbolInput(symbolInput.value);
+      updateSelectedSymbolIcon(symbolHidden.value);
+      syncMarketSource(symbolHidden.value);
     });
     symbolInput.addEventListener("blur", () => {
       setTimeout(() => { symbolList.hidden = true; }, 120);
@@ -1434,7 +1501,7 @@ INDEX_HTML = """
         candles_per_tf[tf] = inp ? Math.max(1, parseInt(inp.value) || 200) : 200;
       });
       return {
-        symbol: form.symbol.value,
+        symbol: normalizeSymbolInput(form.symbol.value),
         mode: form.mode.value,
         source: form.source.value,
         exchange: form.exchange.value,

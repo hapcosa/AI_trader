@@ -178,7 +178,12 @@ def _fetch_ccxt(
     if symbol not in markets:
         # Intentar variaciones del símbolo
         alt = symbol.replace("/", "")
-        matches = [k for k in markets if k.replace("/", "") == alt.upper()]
+        alt_compact = alt.replace(":", "").upper()
+        matches = [
+            k for k in markets
+            if k.replace("/", "").replace(":", "").upper() == alt_compact
+            or k.replace("/", "").split(":")[0].upper() == alt.upper()
+        ]
         if matches:
             symbol = matches[0]
         else:
