@@ -309,6 +309,75 @@ INDEX_HTML = """
     .ai-btn.claude:hover  { border-color: #cc785c; }
     .ai-btn.gemini:hover  { border-color: #4285f4; }
     .ai-btn.deepseek:hover{ border-color: #4d6bfe; }
+    .combo { position: relative; }
+    .combo-list {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      z-index: 50;
+      max-height: 280px;
+      overflow-y: auto;
+      margin: 0;
+      padding: 4px 0;
+      list-style: none;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      box-shadow: 0 8px 24px rgba(23, 32, 38, 0.12);
+    }
+    .combo-list li {
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--ink);
+    }
+    .combo-list li:hover,
+    .combo-list li.active {
+      background: #e7f5f6;
+      color: var(--accent-strong);
+    }
+    .combo-list li.empty {
+      color: var(--muted);
+      cursor: default;
+      font-style: italic;
+    }
+    .combo-list li.empty:hover { background: transparent; color: var(--muted); }
+    .toast {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      z-index: 1000;
+      min-width: 320px;
+      max-width: 90vw;
+      padding: 14px 22px;
+      background: #087f8c;
+      color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.22);
+      font-size: 15px;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s ease, transform 0.22s ease;
+      text-align: center;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+      pointer-events: auto;
+    }
+    .toast.error { background: #a33434; }
+    .toast kbd {
+      display: inline-block;
+      padding: 2px 7px;
+      margin: 0 2px;
+      background: rgba(255,255,255,0.22);
+      border-radius: 4px;
+      font-family: "Fira Mono", "Cascadia Code", monospace;
+      font-size: 13px;
+    }
     .tf-rows { display: flex; flex-wrap: wrap; gap: 8px; }
     .tf-row {
       display: inline-flex;
@@ -419,6 +488,8 @@ INDEX_HTML = """
   </style>
 </head>
 <body>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
   <main>
     <header>
       <h1>AI Trader</h1>
@@ -427,38 +498,13 @@ INDEX_HTML = """
 
     <form id="runner-form">
       <div class="grid">
-        <div class="field">
-          <label for="symbol">Simbolo</label>
-          <select id="symbol" name="symbol">
-            <option value="BTC/USDT" selected>BTC/USDT</option>
-            <option value="ETH/USDT">ETH/USDT</option>
-            <option value="SOL/USDT">SOL/USDT</option>
-            <option value="BNB/USDT">BNB/USDT</option>
-            <option value="XRP/USDT">XRP/USDT</option>
-            <option value="DOGE/USDT">DOGE/USDT</option>
-            <option value="ADA/USDT">ADA/USDT</option>
-            <option value="AVAX/USDT">AVAX/USDT</option>
-            <option value="LINK/USDT">LINK/USDT</option>
-            <option value="DOT/USDT">DOT/USDT</option>
-            <option value="MATIC/USDT">MATIC/USDT</option>
-            <option value="UNI/USDT">UNI/USDT</option>
-            <option value="ATOM/USDT">ATOM/USDT</option>
-            <option value="LTC/USDT">LTC/USDT</option>
-            <option value="BCH/USDT">BCH/USDT</option>
-            <option value="NEAR/USDT">NEAR/USDT</option>
-            <option value="OP/USDT">OP/USDT</option>
-            <option value="ARB/USDT">ARB/USDT</option>
-            <option value="INJ/USDT">INJ/USDT</option>
-            <option value="TRX/USDT">TRX/USDT</option>
-            <option value="APT/USDT">APT/USDT</option>
-            <option value="SUI/USDT">SUI/USDT</option>
-            <option value="TON/USDT">TON/USDT</option>
-            <option value="WIF/USDT">WIF/USDT</option>
-            <option value="PEPE/USDT">PEPE/USDT</option>
-            <option value="SHIB/USDT">SHIB/USDT</option>
-            <option value="ETC/USDT">ETC/USDT</option>
-            <option value="FIL/USDT">FIL/USDT</option>
-          </select>
+        <div class="field combo-field">
+          <label for="symbol-search">Simbolo</label>
+          <div class="combo">
+            <input type="text" id="symbol-search" autocomplete="off" placeholder="Buscar par..." value="BTC/USDT">
+            <input type="hidden" name="symbol" id="symbol" value="BTC/USDT">
+            <ul id="symbol-list" class="combo-list" hidden></ul>
+          </div>
         </div>
 
         <div class="field">
@@ -509,6 +555,11 @@ INDEX_HTML = """
             <option value="claude-opus-4-7">Opus 4.7 — Mejor análisis</option>
             <option value="claude-haiku-4-5-20251001">Haiku 4.5 — Más rápido</option>
           </select>
+        </div>
+
+        <div class="field mid">
+          <label for="api_key">Anthropic API Key</label>
+          <input type="password" id="api_key" name="api_key" placeholder="sk-ant-..." autocomplete="off">
         </div>
 
         <label class="toggle">
@@ -579,6 +630,96 @@ INDEX_HTML = """
 
     let lastPrompt = null;
     let lastMode = null;
+
+    const SYMBOLS = [
+      "BTC/USDT","ETH/USDT","SOL/USDT","BNB/USDT","XRP/USDT","DOGE/USDT","ADA/USDT","AVAX/USDT",
+      "LINK/USDT","DOT/USDT","MATIC/USDT","UNI/USDT","ATOM/USDT","LTC/USDT","BCH/USDT","NEAR/USDT",
+      "OP/USDT","ARB/USDT","INJ/USDT","TRX/USDT","APT/USDT","SUI/USDT","TON/USDT","WIF/USDT",
+      "PEPE/USDT","SHIB/USDT","ETC/USDT","FIL/USDT",
+      "AAVE/USDT","APR/USDT","ASTER/USDT","BIO/USDT","BIRB/USDT","CELO/USDT","CETUS/USDT","CFX/USDT",
+      "CHZ/USDT","ENA/USDT","ESPORTS/USDT","FARTCOIN/USDT","HBAR/USDT","HUMA/USDT","HYPE/USDT",
+      "IP/USDT","KAS/USDT","KMNO/USDT","M/USDT","MORPHO/USDT","MOVR/USDT","MU/USDT","NAORIS/USDT",
+      "NEIROCTO/USDT","ONDO/USDT","PARTI/USDT","PENDLE/USDT","PENGU/USDT","PEOPLE/USDT","PHA/USDT",
+      "PIEVERSE/USDT","PIPPIN/USDT","PI/USDT","PIXEL/USDT","PLUME/USDT","PNUT/USDT","POL/USDT",
+      "POLYX/USDT","POPCAT/USDT","POWER/USDT","POWR/USDT","PROVE/USDT","PUMP/USDT","PUNDIX/USDT",
+      "PYTH/USDT","RAVE/USDT","RAY/USDT","RENDER/USDT","RIVER/USDT","RUNE/USDT","SAHARA/USDT",
+      "SIREN/USDT","STO/USDT","TAO/USDT","TIA/USDT","TRUMP/USDT","XLM/USDT","XMR/USDT","ZEC/USDT"
+    ].sort();
+
+    const symbolInput  = document.querySelector("#symbol-search");
+    const symbolHidden = document.querySelector("#symbol");
+    const symbolList   = document.querySelector("#symbol-list");
+    let activeIdx = -1;
+    let filtered = SYMBOLS.slice();
+
+    function renderSymbolList(items) {
+      symbolList.innerHTML = "";
+      if (!items.length) {
+        const li = document.createElement("li");
+        li.className = "empty";
+        li.textContent = "Sin resultados";
+        symbolList.appendChild(li);
+        return;
+      }
+      items.forEach((sym, i) => {
+        const li = document.createElement("li");
+        li.textContent = sym;
+        li.dataset.value = sym;
+        if (i === activeIdx) li.classList.add("active");
+        li.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          selectSymbol(sym);
+        });
+        symbolList.appendChild(li);
+      });
+    }
+
+    function filterSymbols(q) {
+      const term = q.trim().toUpperCase();
+      filtered = term
+        ? SYMBOLS.filter((s) => s.toUpperCase().includes(term))
+        : SYMBOLS.slice();
+      activeIdx = filtered.length ? 0 : -1;
+      renderSymbolList(filtered);
+    }
+
+    function selectSymbol(sym) {
+      symbolInput.value = sym;
+      symbolHidden.value = sym;
+      symbolList.hidden = true;
+    }
+
+    symbolInput.addEventListener("focus", () => {
+      filterSymbols(symbolInput.value);
+      symbolList.hidden = false;
+    });
+    symbolInput.addEventListener("input", () => {
+      filterSymbols(symbolInput.value);
+      symbolList.hidden = false;
+      symbolHidden.value = symbolInput.value.toUpperCase();
+    });
+    symbolInput.addEventListener("blur", () => {
+      setTimeout(() => { symbolList.hidden = true; }, 120);
+    });
+    symbolInput.addEventListener("keydown", (e) => {
+      if (symbolList.hidden) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        activeIdx = Math.min(activeIdx + 1, filtered.length - 1);
+        renderSymbolList(filtered);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        activeIdx = Math.max(activeIdx - 1, 0);
+        renderSymbolList(filtered);
+      } else if (e.key === "Enter") {
+        if (filtered[activeIdx]) {
+          e.preventDefault();
+          selectSymbol(filtered[activeIdx]);
+        }
+      } else if (e.key === "Escape") {
+        symbolList.hidden = true;
+      }
+    });
 
     function checkedValues(name) {
       return [...form.querySelectorAll(`[name="${name}"]:checked`)].map((el) => el.value);
@@ -694,6 +835,12 @@ INDEX_HTML = """
         statusEl.textContent = "Genera el prompt primero (Mostrar prompt).";
         return;
       }
+      const apiKey = apiKeyInput.value.trim();
+      if (!apiKey) {
+        showToast("Ingresa tu <b>Anthropic API Key</b> arriba para analizar con Claude.", "error", 6000);
+        apiKeyInput.focus();
+        return;
+      }
       statusEl.className = "status";
       statusEl.textContent = "";
       statusEl.innerHTML = '<span class="spinner"></span>Enviando a Claude...';
@@ -706,7 +853,7 @@ INDEX_HTML = """
         const response = await fetch("/api/send-to-ai", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, model, mode })
+          body: JSON.stringify({ prompt, model, mode, api_key: apiKey })
         });
         if (!response.ok) {
           let detail = "Error al llamar a Claude.";
@@ -727,13 +874,20 @@ INDEX_HTML = """
     });
 
     const AI_URLS = {
-      chatgpt:  { base: "https://chatgpt.com/",          prefill: true  },
-      claude:   { base: "https://claude.ai/new",         prefill: true  },
-      gemini:   { base: "https://gemini.google.com/app", prefill: false },
-      deepseek: { base: "https://chat.deepseek.com/",    prefill: false }
+      chatgpt:  { base: "https://chatgpt.com/",          label: "ChatGPT"  },
+      claude:   { base: "https://claude.ai/new",         label: "Claude"   },
+      gemini:   { base: "https://gemini.google.com/app", label: "Gemini"   },
+      deepseek: { base: "https://chat.deepseek.com/",    label: "DeepSeek" }
     };
-    // Limite practico de URL — mas alla de esto, omitir prefill (usar solo portapapeles)
-    const URL_PREFILL_LIMIT = 6000;
+
+    const toastEl = document.querySelector("#toast");
+    let toastTimer = null;
+    function showToast(html, kind = "ok", ms = 4500) {
+      toastEl.innerHTML = html;
+      toastEl.className = "toast show" + (kind === "error" ? " error" : "");
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { toastEl.classList.remove("show"); }, ms);
+    }
 
     async function copyToClipboard(text) {
       try { await navigator.clipboard.writeText(text); return true; }
@@ -741,6 +895,7 @@ INDEX_HTML = """
         try {
           promptTextarea.select();
           document.execCommand("copy");
+          window.getSelection().removeAllRanges();
           return true;
         } catch (__) { return false; }
       }
@@ -750,28 +905,40 @@ INDEX_HTML = """
       btn.addEventListener("click", async () => {
         const prompt = promptTextarea.value;
         if (!prompt) {
-          statusEl.className = "status error";
-          statusEl.textContent = "Genera el prompt primero (Mostrar prompt).";
+          showToast("Genera el prompt primero (botón <b>Mostrar prompt</b>).", "error");
           return;
         }
         const ai = btn.dataset.ai;
         const cfg = AI_URLS[ai];
         if (!cfg) return;
         const copied = await copyToClipboard(prompt);
-        let url = cfg.base;
-        if (cfg.prefill) {
-          const encoded = encodeURIComponent(prompt);
-          if (encoded.length <= URL_PREFILL_LIMIT) {
-            url += "?q=" + encoded;
-          }
+        if (!copied) {
+          showToast("No se pudo copiar al portapapeles. Copia manualmente del cuadro y pega en " + cfg.label + ".", "error", 7000);
+          window.open(cfg.base, "_blank", "noopener,noreferrer");
+          return;
         }
-        window.open(url, "_blank", "noopener,noreferrer");
-        statusEl.className = "status done";
-        const note = cfg.prefill
-          ? "Prompt rellenado en " + ai + ". Pulsa Enter para enviar."
-          : (copied ? "Prompt copiado. Pega con Ctrl+V en " + ai + "." : "Abre " + ai + " — copia manualmente del cuadro.");
-        statusEl.textContent = note;
+        window.open(cfg.base, "_blank", "noopener,noreferrer");
+        showToast(
+          "✓ Prompt copiado al portapapeles. En " + cfg.label + " pega con <kbd>Ctrl</kbd>+<kbd>V</kbd> y pulsa <kbd>Enter</kbd>.",
+          "ok",
+          6000
+        );
       });
+    });
+
+    // ─── API Key persistente en localStorage ─────────────────────────────────
+    const apiKeyInput = document.querySelector("#api_key");
+    const STORAGE_KEY = "ai_trader_anthropic_key";
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) apiKeyInput.value = saved;
+    } catch (_) {}
+    apiKeyInput.addEventListener("change", () => {
+      try {
+        const v = apiKeyInput.value.trim();
+        if (v) localStorage.setItem(STORAGE_KEY, v);
+        else localStorage.removeItem(STORAGE_KEY);
+      } catch (_) {}
     });
 
     copyBtn.addEventListener("click", async () => {
@@ -988,11 +1155,14 @@ async def send_to_ai_endpoint(request: Request) -> JSONResponse:
         model = str(payload.get("model", "claude-sonnet-4-6")).strip() or "claude-sonnet-4-6"
         mode = str(payload.get("mode", "mindset")).strip() or "mindset"
 
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key or api_key.startswith("sk-ant-..."):
+        api_key = str(payload.get("api_key", "")).strip()
+        if not api_key:
             raise ValueError(
-                "ANTHROPIC_API_KEY no configurado. "
-                "Agrega tu key en AI_trader/.env → ANTHROPIC_API_KEY=sk-ant-..."
+                "API Key requerida. Ingresa tu Anthropic API Key en el formulario."
+            )
+        if not api_key.startswith("sk-ant-"):
+            raise ValueError(
+                "Formato de API Key inválido. Debe comenzar con 'sk-ant-'."
             )
 
         from pineforge_ai.prompt_builder import call_claude_raw
