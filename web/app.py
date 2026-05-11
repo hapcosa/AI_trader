@@ -458,7 +458,6 @@ INDEX_HTML = """
       min-width: 0;
       position: relative;
     }
-    .combo-field { z-index: 30; }
     .field.wide { grid-column: span 12; }
     .field.mid { grid-column: span 6; }
     label,
@@ -756,27 +755,27 @@ INDEX_HTML = """
       box-shadow: none;
     }
     /* ---------- COMBO (símbolo) ---------- */
-    .combo { position: relative; z-index: 40; }
+    .combo { position: relative; }
     .combo-list {
       position: absolute;
       top: calc(100% + 4px);
       left: 0;
       right: 0;
-      z-index: 999;
+      z-index: 50;
       max-height: 280px;
       overflow-y: auto;
       margin: 0;
       padding: 4px 0;
       list-style: none;
-      background: rgba(6, 18, 36, 0.98);
-      border: 1px solid rgba(0, 229, 255, 0.78);
+      background: #061224;
+      border: 1px solid var(--accent);
       border-radius: 3px;
-      box-shadow: 0 0 10px rgba(0,229,255,0.20), 0 16px 34px rgba(0,0,0,0.78);
+      box-shadow: 0 0 24px rgba(0,229,255,0.35), 0 12px 30px rgba(0,0,0,0.6);
     }
     .combo-list li {
       display: flex;
       align-items: center;
-      gap: 9px;
+      gap: 12px;
       padding: 8px 14px;
       cursor: pointer;
       font-family: "Share Tech Mono", monospace;
@@ -784,6 +783,7 @@ INDEX_HTML = """
       color: var(--muted-2);
       letter-spacing: 0.05em;
     }
+    .combo-list li .asset-icon { position: static; }
     .combo-list li:hover,
     .combo-list li.active {
       background: rgba(0,229,255,0.12);
