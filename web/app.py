@@ -15,6 +15,7 @@ except ImportError:
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from pineforge_ai.config import ALL_INDICATORS, DEFAULT_EXCHANGE
 from pineforge_ai.runner import generate_prompt, generate_prompt_file
@@ -40,6 +41,10 @@ DEFAULT_WEB_TIMEFRAMES = {"1h", "4h", "1d", "1w"}
 
 
 app = FastAPI(title="AI Trader Web Runner")
+
+_STATIC_DIR = Path(__file__).parent / "static"
+_STATIC_DIR.mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 
 INDEX_HTML = """
@@ -369,6 +374,20 @@ INDEX_HTML = """
       pointer-events: auto;
     }
     .toast.error { background: #a33434; }
+    .side-gif {
+      position: fixed;
+      left: 16px;
+      bottom: 16px;
+      width: 160px;
+      height: auto;
+      z-index: 1;
+      pointer-events: none;
+      user-select: none;
+      opacity: 0.92;
+    }
+    @media (max-width: 1320px) {
+      .side-gif { display: none; }
+    }
     .toast kbd {
       display: inline-block;
       padding: 2px 7px;
@@ -489,6 +508,7 @@ INDEX_HTML = """
 </head>
 <body>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <img src="/static/jesus.gif" class="side-gif" alt="" onerror="this.style.display='none'">
 
   <main>
     <header>
