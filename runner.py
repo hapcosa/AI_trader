@@ -314,23 +314,30 @@ def generate_prompt(
     except Exception as e:
         _emit(emit, f"      USDT.D alerts FAIL: {e}")
 
-    usdt_mtf = None
+    dominance_mtf = None
     try:
         from pineforge_ai.usdt_dominance import tv_cache, usdt_indicators
 
-        wrote = tv_cache.refresh_all("USDT.D")
-        dfs_usdt = tv_cache.get_dfs("USDT.D")
-        usdt_mtf = usdt_indicators.build_usdt_indicators_summary(dfs_usdt)
-        if usdt_mtf.get("available"):
-            _emit(
-                emit,
-                "      USDT.D MTF indicators OK ("
-                f"tfs={usdt_mtf['tfs']}, fetched={wrote})",
-            )
+        dominance_targets = [
+            ("USDT.D",   "CRYPTOCAP:USDT.D"),
+            ("BTC.D",    "CRYPTOCAP:BTC.D"),
+            ("OTHERS.D", "CRYPTOCAP:OTHERS.D"),
+        ]
+        dominance_mtf = {}
+        for label, fq in dominance_targets:
+            try:
+                tv_cache.refresh_all(fq)
+                dfs_x = tv_cache.get_dfs(fq)
+                dominance_mtf[label] = usdt_indicators.build_usdt_indicators_summary(dfs_x)
+            except Exception as e:
+                _emit(emit, f"      {label} MTF FAIL: {e}")
+        ok_labels = [k for k, v in dominance_mtf.items() if v.get("available")]
+        if ok_labels:
+            _emit(emit, f"      Dominance MTF OK ({', '.join(ok_labels)})")
         else:
-            _emit(emit, "      USDT.D MTF indicators: sin datos")
+            dominance_mtf = None
     except Exception as e:
-        _emit(emit, f"      USDT.D MTF FAIL: {e}")
+        _emit(emit, f"      Dominance MTF FAIL: {e}")
 
     market_cap_data = None
     try:
@@ -364,7 +371,7 @@ def generate_prompt(
         volatility=volatility,
         usdt_data=usdt_data,
         usdt_alerts=usdt_alerts,
-        usdt_mtf=usdt_mtf,
+        usdt_mtf=dominance_mtf,
         market_cap_data=market_cap_data,
         source=actual_source,
         exchange=exchange,

@@ -37,6 +37,9 @@ ASSET_GROUPS: tuple[tuple[str, str, tuple[tuple[str, str, int, str], ...]], ...]
         ("SOL.D",  "CRYPTOCAP:SOL.D", 2, "%"),
         ("SOLUSDT", "BITGET:SOLUSDT", 2, ""),
     )),
+    ("Altcoins", "🌐", (
+        ("OTHERS.D", "CRYPTOCAP:OTHERS.D", 2, "%"),
+    )),
     ("Gold", "🪙", (
         ("XAU/USD", "OANDA:XAUUSD", 2, ""),
     )),

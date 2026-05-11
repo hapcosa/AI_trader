@@ -582,62 +582,59 @@ def _build_usdt_dominance(
     return "\n".join(lines)
 
 
-def _build_usdt_mtf_indicators(mtf: dict) -> str:
-    """Render WaveTrend / LuxAlgo AMO / SMC Elite on USDT.D bars per TF."""
-    lines = [_section("USDT.D — INDICATORS MTF")]
+def _render_single_mtf(label: str, mtf: dict) -> str:
+    """Render WaveTrend / LuxAlgo AMO / SMC Elite tables for one symbol."""
+    lines = [f"  ── {label}"]
     tfs = mtf.get("tfs") or []
     if not tfs:
-        lines.append("  (sin datos por TF)")
+        lines.append("    (sin datos por TF)")
         return "\n".join(lines)
 
     wt = mtf.get("wt", {})
     lux = mtf.get("lux", {})
     smc = mtf.get("smc", {})
 
-    lines.append(f"  Source: CRYPTOCAP:USDT.D via TV  |  TFs: {', '.join(tfs)}")
+    lines.append(f"    TFs: {', '.join(tfs)}")
 
-    lines.append("")
-    lines.append("  [WaveTrend]")
-    lines.append("  TF   | Osc   | Trigger | Hyper | Trend     | Signal")
-    lines.append("  " + "-" * 64)
+    lines.append("    [WaveTrend]")
+    lines.append("    TF   | Osc   | Trigger | Hyper | Trend     | Signal")
+    lines.append("    " + "-" * 64)
     for tf in tfs:
         w = wt.get(tf) or {}
         if not w:
-            lines.append(f"  {tf:<4} | —     | —       | —     | —         | —")
+            lines.append(f"    {tf:<4} | —     | —       | —     | —         | —")
             continue
         lines.append(
-            f"  {tf:<4} | {str(w.get('osc','—')):>5} | {str(w.get('trigger','—')):>7} "
+            f"    {tf:<4} | {str(w.get('osc','—')):>5} | {str(w.get('trigger','—')):>7} "
             f"| {str(w.get('hyper','—')):>5} | {str(w.get('trend','—'))[:9]:<9} "
             f"| {str(w.get('signal','—'))[:14]}"
         )
 
-    lines.append("")
-    lines.append("  [LuxAlgo AMO]")
-    lines.append("  TF   | AMO     | AMA     | Direction  | Divergence")
-    lines.append("  " + "-" * 58)
+    lines.append("    [LuxAlgo AMO]")
+    lines.append("    TF   | AMO     | AMA     | Direction  | Divergence")
+    lines.append("    " + "-" * 58)
     for tf in tfs:
         x = lux.get(tf) or {}
         if not x:
-            lines.append(f"  {tf:<4} | —       | —       | —          | —")
+            lines.append(f"    {tf:<4} | —       | —       | —          | —")
             continue
         lines.append(
-            f"  {tf:<4} | {x.get('amo','—'):>7} | {x.get('ama','—'):>7} "
+            f"    {tf:<4} | {x.get('amo','—'):>7} | {x.get('ama','—'):>7} "
             f"| {str(x.get('direction','—'))[:10]:<10} | {x.get('divergence','—')}"
         )
 
-    lines.append("")
-    lines.append("  [SMC Elite — structure / zones]")
-    lines.append("  TF   | Last Event     | Trend | OB Bull          | OB Bear          | Fisher")
-    lines.append("  " + "-" * 82)
+    lines.append("    [SMC Elite — structure / zones]")
+    lines.append("    TF   | Last Event     | Trend | OB Bull          | OB Bear          | Fisher")
+    lines.append("    " + "-" * 82)
     for tf in tfs:
         m = smc.get(tf) or {}
         if not m:
-            lines.append(f"  {tf:<4} | —              | —     | —                | —                | —")
+            lines.append(f"    {tf:<4} | —              | —     | —                | —                | —")
             continue
         trend_map = {1: "↑", -1: "↓", 0: "→"}
         trend_s = trend_map.get(int(m.get("ms_trend", 0)), "?")
         lines.append(
-            f"  {tf:<4} | {str(m.get('last_event','—'))[:14]:<14} "
+            f"    {tf:<4} | {str(m.get('last_event','—'))[:14]:<14} "
             f"| {trend_s:<5} | {str(m.get('ob_bull','—'))[:16]:<16} "
             f"| {str(m.get('ob_bear','—'))[:16]:<16} | {str(m.get('fisher','—'))[:18]}"
         )
@@ -646,9 +643,29 @@ def _build_usdt_mtf_indicators(mtf: dict) -> str:
         frost = m.get("frost", "—")
         conf = m.get("confluence", "—")
         lines.append(
-            f"        FVG bull {fvg_bull}  |  FVG bear {fvg_bear}  |  Frost {frost}  |  Confl {conf}"
+            f"          FVG bull {fvg_bull}  |  FVG bear {fvg_bear}  |  Frost {frost}  |  Confl {conf}"
         )
 
+    return "\n".join(lines)
+
+
+def _build_dominance_mtf_indicators(mtf_by_symbol: dict) -> str:
+    """Render WT/AMO/SMC tables for every dominance symbol in `mtf_by_symbol`."""
+    # Accept the legacy single-symbol shape (with key 'available') for back-compat.
+    if isinstance(mtf_by_symbol, dict) and "available" in mtf_by_symbol:
+        mtf_by_symbol = {"USDT.D": mtf_by_symbol}
+
+    available_pairs = [
+        (label, m) for label, m in mtf_by_symbol.items()
+        if isinstance(m, dict) and m.get("available")
+    ]
+    if not available_pairs:
+        return _section("DOMINANCE — INDICATORS MTF") + "\n  (sin datos)"
+
+    lines = [_section("DOMINANCE — INDICATORS MTF")]
+    for label, m in available_pairs:
+        lines.append("")
+        lines.append(_render_single_mtf(label, m))
     return "\n".join(lines)
 
 
@@ -865,8 +882,8 @@ def build_prompt(
 
     blocks.append(_build_market_cap(market_cap_data))
     blocks.append(_build_usdt_dominance(usdt_data, usdt_alerts))
-    if usdt_mtf and usdt_mtf.get("available"):
-        blocks.append(_build_usdt_mtf_indicators(usdt_mtf))
+    if usdt_mtf:
+        blocks.append(_build_dominance_mtf_indicators(usdt_mtf))
 
     # Raw OHLCV history (14 days)
     blocks.append(_build_ohlcv_history(dfs, timeframes, days=ohlcv_history_days))
