@@ -298,6 +298,40 @@ def generate_prompt(
     except Exception as e:
         _emit(emit, f"      USDT.D FAIL: {e}")
 
+    usdt_alerts = None
+    try:
+        from pineforge_ai.usdt_dominance.alerts_reader import build_usdt_alerts_summary
+
+        usdt_alerts = build_usdt_alerts_summary(hours=24)
+        if usdt_alerts.get("available"):
+            _emit(
+                emit,
+                f"      USDT.D alerts OK ({usdt_alerts['count']} en 24h, "
+                f"last={usdt_alerts['last_signal']})",
+            )
+        else:
+            _emit(emit, "      USDT.D alerts: sin eventos en 24h")
+    except Exception as e:
+        _emit(emit, f"      USDT.D alerts FAIL: {e}")
+
+    usdt_mtf = None
+    try:
+        from pineforge_ai.usdt_dominance import tv_cache, usdt_indicators
+
+        wrote = tv_cache.refresh_all("USDT.D")
+        dfs_usdt = tv_cache.get_dfs("USDT.D")
+        usdt_mtf = usdt_indicators.build_usdt_indicators_summary(dfs_usdt)
+        if usdt_mtf.get("available"):
+            _emit(
+                emit,
+                "      USDT.D MTF indicators OK ("
+                f"tfs={usdt_mtf['tfs']}, fetched={wrote})",
+            )
+        else:
+            _emit(emit, "      USDT.D MTF indicators: sin datos")
+    except Exception as e:
+        _emit(emit, f"      USDT.D MTF FAIL: {e}")
+
     market_cap_data = None
     try:
         from pineforge_ai.context.market_cap import build_market_cap_summary
@@ -329,6 +363,8 @@ def generate_prompt(
         correlations=correlations,
         volatility=volatility,
         usdt_data=usdt_data,
+        usdt_alerts=usdt_alerts,
+        usdt_mtf=usdt_mtf,
         market_cap_data=market_cap_data,
         source=actual_source,
         exchange=exchange,

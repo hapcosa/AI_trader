@@ -516,47 +516,139 @@ def _build_market_cap(mc_data: dict | None) -> str:
     return "\n".join(lines)
 
 
-def _build_usdt_dominance(usdt_data: dict | None) -> str:
+def _build_usdt_dominance(
+    usdt_data: dict | None,
+    usdt_alerts: dict | None = None,
+) -> str:
     lines = [_section("USDT DOMINANCE")]
     if not usdt_data or not usdt_data.get("available"):
         lines.append("  (daemon not running — no USDT.D data)")
         lines.append("  Start with: python -m pineforge_ai.usdt_dominance.daemon")
+    else:
+        cur = usdt_data.get("current")
+        zone = usdt_data.get("zone", "—")
+        t1d = usdt_data.get("trend_1d", "—")
+        t4h = usdt_data.get("trend_4h", "—")
+        t1h = usdt_data.get("trend_1h", "—")
+
+        trend_arrow = {"bull": "↑", "bear": "↓", "neutral": "→"}
+        signal = (
+            "🔴 SHORT bias (risk-off)" if t1h == "bear" and t4h == "bear"
+            else "🟢 LONG bias (risk-on)" if t1h == "bull" and t4h == "bull"
+            else "⚪ Neutral"
+        )
+
+        lines.append(f"  Current : {cur:.4f}%  |  Zone: {zone}")
+        lines.append(
+            f"  Trend   : 1D={trend_arrow.get(t1d,'?')}{t1d}  "
+            f"4H={trend_arrow.get(t4h,'?')}{t4h}  "
+            f"1H={trend_arrow.get(t1h,'?')}{t1h}"
+        )
+        lines.append(f"  Signal  : {signal}")
+
+        df14 = usdt_data.get("ohlcv_1d")
+        if df14 is not None and not df14.empty:
+            lines.append("")
+            lines.append("  [14D DAILY OHLCV]")
+            lines.append("  Date          Open      High      Low       Close")
+            lines.append("  " + "-" * 52)
+            for ts, row in df14.tail(14).iterrows():
+                date_str = ts.strftime("%Y-%m-%d")
+                lines.append(
+                    f"  {date_str}   "
+                    f"{row['open']:.4f}    {row['high']:.4f}    "
+                    f"{row['low']:.4f}    {row['close']:.4f}"
+                )
+
+    if usdt_alerts and usdt_alerts.get("available"):
+        n = usdt_alerts.get("count", 0)
+        win = usdt_alerts.get("window_hours", 24)
+        lines.append("")
+        lines.append(f"  [TV ALERTS — last {win}h: {n} event(s)]")
+        lines.append("  Time (UTC)         Signal              Dir    Value     Level")
+        lines.append("  " + "-" * 68)
+        for a in usdt_alerts.get("alerts", []):
+            ts_dt = a.get("ts")
+            ts_str = ts_dt.strftime("%Y-%m-%d %H:%M") if ts_dt else "—"
+            sig = (a.get("signal") or "—")[:18].ljust(18)
+            dir_ = (a.get("direction") or "—")[:5].ljust(5)
+            price = a.get("price")
+            val = f"{price:.4f}%" if isinstance(price, (int, float)) else "—"
+            level = a.get("raw", {}).get("level")
+            level_str = (
+                f"{float(level):.4f}%" if isinstance(level, (int, float)) else "—"
+            )
+            lines.append(f"  {ts_str}  {sig}  {dir_}  {val:>8}  {level_str}")
+    return "\n".join(lines)
+
+
+def _build_usdt_mtf_indicators(mtf: dict) -> str:
+    """Render WaveTrend / LuxAlgo AMO / SMC Elite on USDT.D bars per TF."""
+    lines = [_section("USDT.D — INDICATORS MTF")]
+    tfs = mtf.get("tfs") or []
+    if not tfs:
+        lines.append("  (sin datos por TF)")
         return "\n".join(lines)
 
-    cur = usdt_data.get("current")
-    zone = usdt_data.get("zone", "—")
-    t1d = usdt_data.get("trend_1d", "—")
-    t4h = usdt_data.get("trend_4h", "—")
-    t1h = usdt_data.get("trend_1h", "—")
+    wt = mtf.get("wt", {})
+    lux = mtf.get("lux", {})
+    smc = mtf.get("smc", {})
 
-    trend_arrow = {"bull": "↑", "bear": "↓", "neutral": "→"}
-    signal = (
-        "🔴 SHORT bias (risk-off)" if t1h == "bear" and t4h == "bear"
-        else "🟢 LONG bias (risk-on)" if t1h == "bull" and t4h == "bull"
-        else "⚪ Neutral"
-    )
+    lines.append(f"  Source: CRYPTOCAP:USDT.D via TV  |  TFs: {', '.join(tfs)}")
 
-    lines.append(f"  Current : {cur:.4f}%  |  Zone: {zone}")
-    lines.append(
-        f"  Trend   : 1D={trend_arrow.get(t1d,'?')}{t1d}  "
-        f"4H={trend_arrow.get(t4h,'?')}{t4h}  "
-        f"1H={trend_arrow.get(t1h,'?')}{t1h}"
-    )
-    lines.append(f"  Signal  : {signal}")
+    lines.append("")
+    lines.append("  [WaveTrend]")
+    lines.append("  TF   | Osc   | Trigger | Hyper | Trend     | Signal")
+    lines.append("  " + "-" * 64)
+    for tf in tfs:
+        w = wt.get(tf) or {}
+        if not w:
+            lines.append(f"  {tf:<4} | —     | —       | —     | —         | —")
+            continue
+        lines.append(
+            f"  {tf:<4} | {str(w.get('osc','—')):>5} | {str(w.get('trigger','—')):>7} "
+            f"| {str(w.get('hyper','—')):>5} | {str(w.get('trend','—'))[:9]:<9} "
+            f"| {str(w.get('signal','—'))[:14]}"
+        )
 
-    df14 = usdt_data.get("ohlcv_1d")
-    if df14 is not None and not df14.empty:
-        lines.append("")
-        lines.append("  [14D DAILY OHLCV]")
-        lines.append("  Date          Open      High      Low       Close")
-        lines.append("  " + "-" * 52)
-        for ts, row in df14.tail(14).iterrows():
-            date_str = ts.strftime("%Y-%m-%d")
-            lines.append(
-                f"  {date_str}   "
-                f"{row['open']:.4f}    {row['high']:.4f}    "
-                f"{row['low']:.4f}    {row['close']:.4f}"
-            )
+    lines.append("")
+    lines.append("  [LuxAlgo AMO]")
+    lines.append("  TF   | AMO     | AMA     | Direction  | Divergence")
+    lines.append("  " + "-" * 58)
+    for tf in tfs:
+        x = lux.get(tf) or {}
+        if not x:
+            lines.append(f"  {tf:<4} | —       | —       | —          | —")
+            continue
+        lines.append(
+            f"  {tf:<4} | {x.get('amo','—'):>7} | {x.get('ama','—'):>7} "
+            f"| {str(x.get('direction','—'))[:10]:<10} | {x.get('divergence','—')}"
+        )
+
+    lines.append("")
+    lines.append("  [SMC Elite — structure / zones]")
+    lines.append("  TF   | Last Event     | Trend | OB Bull          | OB Bear          | Fisher")
+    lines.append("  " + "-" * 82)
+    for tf in tfs:
+        m = smc.get(tf) or {}
+        if not m:
+            lines.append(f"  {tf:<4} | —              | —     | —                | —                | —")
+            continue
+        trend_map = {1: "↑", -1: "↓", 0: "→"}
+        trend_s = trend_map.get(int(m.get("ms_trend", 0)), "?")
+        lines.append(
+            f"  {tf:<4} | {str(m.get('last_event','—'))[:14]:<14} "
+            f"| {trend_s:<5} | {str(m.get('ob_bull','—'))[:16]:<16} "
+            f"| {str(m.get('ob_bear','—'))[:16]:<16} | {str(m.get('fisher','—'))[:18]}"
+        )
+        fvg_bull = m.get("fvg_bull", "—")
+        fvg_bear = m.get("fvg_bear", "—")
+        frost = m.get("frost", "—")
+        conf = m.get("confluence", "—")
+        lines.append(
+            f"        FVG bull {fvg_bull}  |  FVG bear {fvg_bear}  |  Frost {frost}  |  Confl {conf}"
+        )
+
     return "\n".join(lines)
 
 
@@ -645,49 +737,6 @@ def _build_session_history(dfs: dict, n_sessions: int = 5) -> str:
 
     df.drop(columns=["_date"], inplace=True)
     return "\n".join(lines)
-
-
-def _build_recent_alerts(symbol: str | None, hours: int = 24) -> str:
-    """Pull recent alerts from indicatorsForge SQLite DB and format for the prompt."""
-    try:
-        from AI_trader.data.alerts_reader import (
-            format_alerts_block,
-            format_dominance_block,
-            get_dominance_trend,
-            get_recent_alerts,
-        )
-    except ImportError:
-        try:
-            from .data.alerts_reader import (  # type: ignore
-                format_alerts_block,
-                format_dominance_block,
-                get_dominance_trend,
-                get_recent_alerts,
-            )
-        except ImportError:
-            return ""
-
-    smc_alerts = get_recent_alerts(symbol=symbol, source_type="indicator_smc", since_hours=hours, limit=15)
-    tv_alerts = get_recent_alerts(symbol=symbol, source_type="tradingview_alert", since_hours=hours, limit=10)
-    ai_alerts = get_recent_alerts(symbol=symbol, source_type="ai_signal", since_hours=hours, limit=5)
-    dom_trend = get_dominance_trend(hours=hours)
-
-    if not smc_alerts and not tv_alerts and not ai_alerts and not dom_trend.get("available"):
-        return ""
-
-    parts = [_section(f"RECENT ALERTS — last {hours}h")]
-    parts.append("[USDT DOMINANCE CONTEXT]")
-    parts.append(format_dominance_block(dom_trend))
-    if smc_alerts:
-        parts.append("\n[SMC ALERTS]")
-        parts.append(format_alerts_block(smc_alerts, max_items=15))
-    if tv_alerts:
-        parts.append("\n[TRADINGVIEW ALERTS]")
-        parts.append(format_alerts_block(tv_alerts, max_items=10))
-    if ai_alerts:
-        parts.append("\n[PRIOR AI SIGNALS]")
-        parts.append(format_alerts_block(ai_alerts, max_items=5))
-    return "\n".join(parts)
 
 
 def _build_pretrain_context(pretrain_summary):
@@ -781,6 +830,8 @@ def build_prompt(
     volatility: dict | None = None,
     pretrain_summary: list[str] | None = None,
     usdt_data: dict | None = None,
+    usdt_alerts: dict | None = None,
+    usdt_mtf: dict | None = None,
     market_cap_data: dict | None = None,
     source: str = "auto",
     exchange: str = "binance",
@@ -813,12 +864,9 @@ def build_prompt(
     if volatility:   blocks.append(_build_volatility(volatility, timeframes))
 
     blocks.append(_build_market_cap(market_cap_data))
-    blocks.append(_build_usdt_dominance(usdt_data))
-
-    # Recent alerts from indicatorsForge (TradingView/SMC/USDT.D/AI signals)
-    alerts_block = _build_recent_alerts(symbol=symbol, hours=24)
-    if alerts_block:
-        blocks.append(alerts_block)
+    blocks.append(_build_usdt_dominance(usdt_data, usdt_alerts))
+    if usdt_mtf and usdt_mtf.get("available"):
+        blocks.append(_build_usdt_mtf_indicators(usdt_mtf))
 
     # Raw OHLCV history (14 days)
     blocks.append(_build_ohlcv_history(dfs, timeframes, days=ohlcv_history_days))

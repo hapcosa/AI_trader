@@ -10,3 +10,5 @@ python-dateutil>=2.8
 pytz>=2024.1
 python-dotenv>=1.0
 anthropic>=0.40
+tvdatafeed-enhanced>=2.2.1
+websocket-client>=1.7
