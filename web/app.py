@@ -230,12 +230,23 @@ INDEX_HTML = """
     .avatar-wrap .corner.tr { top: 4px; right: 4px; border-left: 0; border-bottom: 0; }
     .avatar-wrap .corner.bl { bottom: 4px; left: 4px; border-right: 0; border-top: 0; }
     .avatar-wrap .corner.br { bottom: 4px; right: 4px; border-left: 0; border-top: 0; }
-    .avatar-svg { width: 86%; height: auto; filter: drop-shadow(0 0 14px rgba(0,229,255,0.45)); }
+    .avatar-gif {
+      position: relative;
+      z-index: 1;
+      width: auto;
+      height: 104%;
+      max-width: none;
+      object-fit: contain;
+      object-position: center bottom;
+      filter:
+        drop-shadow(0 0 16px rgba(0,229,255,0.55))
+        drop-shadow(0 0 18px rgba(255,61,240,0.18));
+      transform: translateY(2%);
+    }
     @keyframes pulse-halo {
       0%, 100% { transform: scale(1); opacity: 0.55; }
       50%      { transform: scale(1.06); opacity: 0.85; }
     }
-    .avatar-svg .halo { transform-origin: center; animation: pulse-halo 2.6s ease-in-out infinite; }
     .nucleo {
       display: flex; flex-direction: column; gap: 4px;
       padding: 8px 10px;
@@ -474,6 +485,45 @@ INDEX_HTML = """
     .input-shell.has-icon select {
       padding-left: 38px;
     }
+    .asset-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      flex: 0 0 18px;
+      border-radius: 50%;
+      font-family: "Orbitron", monospace;
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 0;
+      color: #04101a;
+      background: linear-gradient(135deg, #00e5ff, #29f7ff);
+      box-shadow: 0 0 10px rgba(0,229,255,0.55);
+      text-transform: uppercase;
+    }
+    .input-shell .asset-icon {
+      position: absolute;
+      left: 12px;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .asset-icon.btc { background: linear-gradient(135deg, #f7931a, #ffd166); }
+    .asset-icon.eth { background: linear-gradient(135deg, #8aa4ff, #e5ecff); }
+    .asset-icon.sol { background: linear-gradient(135deg, #14f195, #9945ff); color: #061024; }
+    .asset-icon.bnb { background: linear-gradient(135deg, #f3ba2f, #ffe28a); }
+    .asset-icon.xrp { background: linear-gradient(135deg, #d9f4ff, #6f8ea6); }
+    .asset-icon.doge { background: linear-gradient(135deg, #c2a633, #fff2a6); }
+    .asset-icon.ada { background: linear-gradient(135deg, #1f6fff, #7bdcff); }
+    .asset-icon.avax { background: linear-gradient(135deg, #e84142, #ff9a9a); color: #fff; }
+    .asset-icon.link { background: linear-gradient(135deg, #2a5ada, #8fb1ff); color: #fff; }
+    .asset-icon.dot { background: linear-gradient(135deg, #e6007a, #ff8bd0); color: #fff; }
+    .asset-icon.matic,
+    .asset-icon.pol { background: linear-gradient(135deg, #8247e5, #c7a7ff); color: #fff; }
+    .asset-icon.uni { background: linear-gradient(135deg, #ff007a, #ff9bd0); color: #fff; }
+    .asset-icon.ltc { background: linear-gradient(135deg, #345d9d, #b8c8e8); color: #fff; }
+    .asset-icon.sui { background: linear-gradient(135deg, #6fbcf0, #d9f4ff); }
+    .asset-icon.ton { background: linear-gradient(135deg, #0098ea, #8bdcff); }
     input[type="text"],
     input[type="number"],
     input[type="password"],
@@ -696,6 +746,9 @@ INDEX_HTML = """
       box-shadow: 0 0 24px rgba(0,229,255,0.35), 0 12px 30px rgba(0,0,0,0.6);
     }
     .combo-list li {
+      display: flex;
+      align-items: center;
+      gap: 9px;
       padding: 8px 14px;
       cursor: pointer;
       font-family: "Share Tech Mono", monospace;
@@ -1023,51 +1076,10 @@ INDEX_HTML = """
     <aside class="sidebar">
       <div class="ai-core-label">AI CORE v2.4</div>
 
-      <!-- TODO: reemplazar SVG por <img src="/static/jesus.gif" class="avatar-gif"> cuando esté el GIF cyber -->
       <div class="avatar-wrap" aria-hidden="true">
         <span class="corner tl"></span><span class="corner tr"></span>
         <span class="corner bl"></span><span class="corner br"></span>
-        <svg class="avatar-svg" viewBox="0 0 200 220" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <radialGradient id="haloG" cx="50%" cy="42%" r="50%">
-              <stop offset="0%" stop-color="#00e5ff" stop-opacity="0.55"/>
-              <stop offset="55%" stop-color="#b266ff" stop-opacity="0.18"/>
-              <stop offset="100%" stop-color="#000" stop-opacity="0"/>
-            </radialGradient>
-            <linearGradient id="bodyG" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stop-color="#0a1a30"/>
-              <stop offset="100%" stop-color="#04101c"/>
-            </linearGradient>
-            <linearGradient id="hoodG" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#0c1e3a"/>
-              <stop offset="100%" stop-color="#050b18"/>
-            </linearGradient>
-          </defs>
-          <circle class="halo" cx="100" cy="92" r="80" fill="url(#haloG)"/>
-          <circle cx="100" cy="92" r="58" fill="none" stroke="#00e5ff" stroke-opacity="0.35" stroke-dasharray="2 4"/>
-          <circle cx="100" cy="92" r="68" fill="none" stroke="#b266ff" stroke-opacity="0.25" stroke-dasharray="1 7"/>
-          <!-- Hooded silhouette -->
-          <path d="M55,90 Q60,40 100,32 Q140,40 145,90 L150,135 Q150,160 130,168 L70,168 Q50,160 50,135 Z"
-                fill="url(#hoodG)" stroke="#00e5ff" stroke-opacity="0.7" stroke-width="1.2"/>
-          <!-- Face shadow -->
-          <ellipse cx="100" cy="100" rx="28" ry="34" fill="#020610"/>
-          <!-- Glowing eyes -->
-          <circle cx="89" cy="98" r="3" fill="#00e5ff"/>
-          <circle cx="111" cy="98" r="3" fill="#00e5ff"/>
-          <circle cx="89" cy="98" r="5" fill="none" stroke="#00e5ff" stroke-opacity="0.5"/>
-          <circle cx="111" cy="98" r="5" fill="none" stroke="#00e5ff" stroke-opacity="0.5"/>
-          <!-- Body / robe -->
-          <path d="M50,165 L60,215 L140,215 L150,165 Q150,180 130,185 L70,185 Q50,180 50,165 Z"
-                fill="url(#bodyG)" stroke="#00e5ff" stroke-opacity="0.5" stroke-width="1"/>
-          <!-- Triangle insignia -->
-          <path d="M100,140 L92,154 L108,154 Z" fill="none" stroke="#ff3df0" stroke-width="1.3" opacity="0.9"/>
-          <!-- HUD ticks -->
-          <g stroke="#00e5ff" stroke-opacity="0.5" stroke-width="1">
-            <line x1="10" y1="92" x2="22" y2="92"/>
-            <line x1="178" y1="92" x2="190" y2="92"/>
-            <line x1="100" y1="6" x2="100" y2="14"/>
-          </g>
-        </svg>
+        <img class="avatar-gif" src="/static/jesus.gif" alt="">
       </div>
 
       <div class="nucleo">
@@ -1109,10 +1121,7 @@ INDEX_HTML = """
         <div class="field combo-field">
           <label for="symbol-search">Símbolo</label>
           <div class="combo input-shell has-icon">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="9"/>
-              <path d="M9.5 8h4a2 2 0 010 4h-4m0 0h5a2 2 0 010 4h-5m0-8v8m2-10v2m0 8v2"/>
-            </svg>
+            <span id="selected-symbol-icon" class="asset-icon btc">B</span>
             <input type="text" id="symbol-search" autocomplete="off" placeholder="Buscar par..." value="BTC/USDT">
             <input type="hidden" name="symbol" id="symbol" value="BTC/USDT">
             <ul id="symbol-list" class="combo-list" hidden></ul>
@@ -1296,8 +1305,44 @@ INDEX_HTML = """
     const symbolInput  = document.querySelector("#symbol-search");
     const symbolHidden = document.querySelector("#symbol");
     const symbolList   = document.querySelector("#symbol-list");
+    const selectedSymbolIcon = document.querySelector("#selected-symbol-icon");
     let activeIdx = -1;
     let filtered = SYMBOLS.slice();
+
+    const ASSET_ICON_LABELS = {
+      BTC: "B", ETH: "E", SOL: "S", BNB: "B", XRP: "X", DOGE: "D", ADA: "A", AVAX: "A",
+      LINK: "L", DOT: "D", MATIC: "M", POL: "P", UNI: "U", ATOM: "A", LTC: "L", BCH: "B",
+      NEAR: "N", OP: "O", ARB: "A", INJ: "I", TRX: "T", APT: "A", SUI: "S", TON: "T",
+      PEPE: "P", SHIB: "S", ETC: "E", FIL: "F", AAVE: "A", ONDO: "O", RENDER: "R",
+      RUNE: "R", TAO: "T", TIA: "T", XLM: "X", XMR: "X", ZEC: "Z"
+    };
+
+    function assetBase(sym) {
+      return (sym.split("/")[0] || sym).trim().toUpperCase();
+    }
+
+    function assetIconClass(sym) {
+      return assetBase(sym).toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    }
+
+    function assetIconText(sym) {
+      const base = assetBase(sym);
+      return ASSET_ICON_LABELS[base] || base.slice(0, 2);
+    }
+
+    function makeAssetIcon(sym) {
+      const icon = document.createElement("span");
+      icon.className = `asset-icon ${assetIconClass(sym)}`;
+      icon.textContent = assetIconText(sym);
+      icon.setAttribute("aria-hidden", "true");
+      return icon;
+    }
+
+    function updateSelectedSymbolIcon(sym) {
+      if (!selectedSymbolIcon) return;
+      selectedSymbolIcon.className = `asset-icon ${assetIconClass(sym)}`;
+      selectedSymbolIcon.textContent = assetIconText(sym);
+    }
 
     function renderSymbolList(items) {
       symbolList.innerHTML = "";
@@ -1310,8 +1355,9 @@ INDEX_HTML = """
       }
       items.forEach((sym, i) => {
         const li = document.createElement("li");
-        li.textContent = sym;
         li.dataset.value = sym;
+        li.appendChild(makeAssetIcon(sym));
+        li.appendChild(document.createTextNode(sym));
         if (i === activeIdx) li.classList.add("active");
         li.addEventListener("mousedown", (e) => {
           e.preventDefault();
@@ -1333,6 +1379,7 @@ INDEX_HTML = """
     function selectSymbol(sym) {
       symbolInput.value = sym;
       symbolHidden.value = sym;
+      updateSelectedSymbolIcon(sym);
       symbolList.hidden = true;
     }
 
