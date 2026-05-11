@@ -40,11 +40,50 @@ TIMEFRAME_ORDER = [
 DEFAULT_WEB_TIMEFRAMES = {"1h", "4h", "1d", "1w"}
 
 
-app = FastAPI(title="AI Trader Web Runner")
+from contextlib import asynccontextmanager
+import logging
+
+_log = logging.getLogger("pineforge_ai.web")
+_digest_scheduler = None
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    global _digest_scheduler
+    if os.environ.get("DOMINANCE_DIGEST_ENABLED", "true").lower() == "true":
+        try:
+            from pineforge_ai.dominance_digest.scheduler import DominanceDigestScheduler
+            _digest_scheduler = DominanceDigestScheduler()
+            await _digest_scheduler.start()
+        except Exception as exc:
+            _log.error("dominance_digest_start_failed: %s", exc, exc_info=True)
+            _digest_scheduler = None
+    try:
+        yield
+    finally:
+        if _digest_scheduler is not None:
+            await _digest_scheduler.stop()
+
+
+app = FastAPI(title="AI Trader Web Runner", lifespan=_lifespan)
 
 _STATIC_DIR = Path(__file__).parent / "static"
 _STATIC_DIR.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+
+@app.post("/api/dominance-digest/fire")
+async def _fire_digest(request: Request):
+    """Manual trigger for tests. Body: {"kind": "4H" | "DAILY"}"""
+    if _digest_scheduler is None:
+        raise HTTPException(status_code=503, detail="scheduler not running")
+    try:
+        body = await request.json()
+        kind = str((body or {}).get("kind", "4H")).upper()
+    except Exception:
+        kind = "4H"
+    ok = await _digest_scheduler.fire_once(kind=kind)
+    return JSONResponse({"ok": ok, "kind": kind})
 
 
 INDEX_HTML = """

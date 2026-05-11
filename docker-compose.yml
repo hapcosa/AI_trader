@@ -6,6 +6,19 @@ services:
       - "8100:8100"
     volumes:
       - ./output:/app/pineforge_ai/output
+      - ./data:/app/pineforge_ai/data
     environment:
       PYTHONUNBUFFERED: "1"
+      NOTIFIER_URL: "${NOTIFIER_URL:-http://notifier:8090}"
+      INTERNAL_INGEST_TOKEN: "${INTERNAL_INGEST_TOKEN}"
+      DOMINANCE_DIGEST_ENABLED: "${DOMINANCE_DIGEST_ENABLED:-true}"
     restart: unless-stopped
+    networks:
+      - default
+      - notifier_net
+
+networks:
+  default:
+  notifier_net:
+    external: true
+    name: kryptolabgenerator_default
