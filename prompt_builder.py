@@ -172,11 +172,24 @@ REGLAS:
 
 # ─── Formatting Helpers ───────────────────────────────────────────────────────
 
-def _fmt_price(val, decimals: int = 2) -> str:
+def _smart_decimals(val: float) -> int:
+    if val >= 1000: return 2
+    if val >= 100:  return 2
+    if val >= 10:   return 3
+    if val >= 1:    return 4
+    if val >= 0.1:  return 5
+    if val >= 0.01: return 6
+    if val >= 0.001: return 7
+    return 8
+
+
+def _fmt_price(val, decimals: int | None = None) -> str:
     if val is None or (isinstance(val, float) and np.isnan(val)):
         return "—"
     try:
-        return f"{float(val):,.{decimals}f}"
+        fval = float(val)
+        d = decimals if decimals is not None else _smart_decimals(abs(fval))
+        return f"{fval:,.{d}f}"
     except Exception:
         return "—"
 
