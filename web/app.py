@@ -201,14 +201,14 @@ INDEX_HTML = """
     .avatar-wrap {
       position: relative;
       width: 100%;
-      aspect-ratio: 0.76 / 1;
+      aspect-ratio: 1 / 1;
       display: flex;
       align-items: center;
       justify-content: center;
       background:
-        radial-gradient(circle at 50% 60%, rgba(0,229,255,0.12), transparent 60%),
+        radial-gradient(circle at 50% 70%, rgba(0,229,255,0.14), transparent 58%),
         radial-gradient(circle at 50% 30%, rgba(178,102,255,0.10), transparent 65%),
-        linear-gradient(180deg, rgba(8,16,30,0.6), rgba(4,8,16,0.9));
+        #01030c;
       border: 1px solid rgba(0,229,255,0.18);
       border-radius: 4px;
       overflow: hidden;
@@ -231,17 +231,17 @@ INDEX_HTML = """
     .avatar-wrap .corner.bl { bottom: 4px; left: 4px; border-right: 0; border-top: 0; }
     .avatar-wrap .corner.br { bottom: 4px; right: 4px; border-left: 0; border-top: 0; }
     .avatar-gif {
-      position: relative;
+      position: absolute;
+      inset: -5%;
       z-index: 1;
-      width: auto;
-      height: 104%;
+      width: 110%;
+      height: 110%;
       max-width: none;
-      object-fit: contain;
-      object-position: center bottom;
+      object-fit: cover;
+      object-position: center center;
       filter:
         drop-shadow(0 0 16px rgba(0,229,255,0.55))
         drop-shadow(0 0 18px rgba(255,61,240,0.18));
-      transform: translateY(2%);
     }
     @keyframes pulse-halo {
       0%, 100% { transform: scale(1); opacity: 0.55; }
@@ -1308,7 +1308,7 @@ INDEX_HTML = """
       <div class="avatar-wrap" aria-hidden="true">
         <span class="corner tl"></span><span class="corner tr"></span>
         <span class="corner bl"></span><span class="corner br"></span>
-        <img class="avatar-gif" src="/static/jesus.gif" alt="">
+        <img class="avatar-gif" src="/static/ai-core.gif" alt="">
       </div>
 
       <div class="nucleo">
