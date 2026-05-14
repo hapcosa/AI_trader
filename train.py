@@ -8,6 +8,7 @@ Usage:
         --end 2025-01-01 \
         --iterations 3 \
         --timeframes 1h,4h,1d \
+        --provider anthropic \
         --api-key $ANTHROPIC_API_KEY
 
     # Dry run (no API calls):
@@ -23,6 +24,7 @@ from datetime import datetime, timezone
 
 import click
 
+from pineforge_ai.ai_clients.registry import DEFAULT_PROVIDER, get_provider_spec, supported_providers
 from pineforge_ai.config import (
     CANDLES_PER_DAY,
     DEFAULT_EXCHANGE,
@@ -46,15 +48,16 @@ def _parse_date(s: str) -> datetime:
 @click.option("--source", default="auto", type=click.Choice(["auto", "yfinance", "ccxt"]))
 @click.option("--exchange", default=DEFAULT_EXCHANGE, show_default=True)
 @click.option("--output", default="pineforge_ai/output/train", show_default=True)
-@click.option("--api-key", default=None, help="Anthropic API key (or env ANTHROPIC_API_KEY)")
-@click.option("--model", default="claude-opus-4-7", show_default=True)
+@click.option("--provider", default=DEFAULT_PROVIDER, show_default=True, type=click.Choice(supported_providers()))
+@click.option("--api-key", default=None, help="Provider API key, or provider-specific env var")
+@click.option("--model", default=None, help="Provider model id. Defaults to selected provider default.")
 @click.option("--lookahead-bars", default=200, show_default=True, type=int,
               help="Bars beyond iteration cutoff to wait for trade outcome")
 @click.option("--dry-run", is_flag=True, default=False,
               help="Do not call API; emit prompts only")
 def main(
     symbol, start, end, iterations, timeframes, source, exchange,
-    output, api_key, model, lookahead_bars, dry_run,
+    output, provider, api_key, model, lookahead_bars, dry_run,
 ):
     """Walk-forward training mode — let AI evaluate its own past performance."""
 
@@ -140,12 +143,18 @@ def main(
     send_fn = None
     if not dry_run:
         from pineforge_ai.prompt_builder import send_to_ai
-        key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+        provider_spec = get_provider_spec(provider)
+        key = api_key or os.environ.get(provider_spec.env_var)
         if not key:
             click.echo("WARN: no API key — switching to dry-run", err=True)
             dry_run = True
         else:
-            send_fn = lambda prompt: send_to_ai(prompt, api_key=key, model=model)
+            send_fn = lambda prompt: send_to_ai(
+                prompt,
+                api_key=key,
+                provider=provider,
+                model=model or provider_spec.default_model,
+            )
 
     # ── Run engine ───────────────────────────────────────────────────────────
     from pineforge_ai.backtester.engine import run_walk_forward

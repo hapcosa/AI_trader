@@ -196,7 +196,8 @@ def generate_prompt(
     no_context: bool = False,
     send_to_ai: bool = False,
     api_key: str | None = None,
-    model: str = "claude-opus-4-7",
+    provider: str = "anthropic",
+    model: str | None = None,
     mode: str = "signal",
     ai_summary: bool = False,
     candles_per_tf: dict[str, int] | None = None,
@@ -388,8 +389,15 @@ def generate_prompt(
 
     ai_response_path = None
     if send_to_ai:
-        _emit(emit, f"\nLlamando a Anthropic ({model}) - modo {mode.upper()}...")
-        data = send_fn(prompt, api_key=api_key, model=model, mode=mode)
+        from pineforge_ai.ai_clients.registry import get_provider_spec
+
+        provider_spec = get_provider_spec(provider)
+        selected_model = model or provider_spec.default_model
+        _emit(
+            emit,
+            f"\nLlamando a {provider_spec.name} ({selected_model}) - modo {mode.upper()}...",
+        )
+        data = send_fn(prompt, api_key=api_key, provider=provider, model=model, mode=mode)
         ai_response_path = (
             file_path.replace(".txt", "_ai.json")
             if file_path

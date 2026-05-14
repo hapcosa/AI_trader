@@ -1,5 +1,22 @@
 # PineForge AI — Python Market Analysis System
 
+> **Submódulo de signalsTrading**. Este repo (`hapcosa/AI_trader`) existe exclusivamente para servir al ecosistema signalsTrading. El parent (`hapcosa/signalsTrading`) lo vendora como submódulo en `AI_trader/` y mantiene un puntero a un commit exacto de aquí.
+
+## Pipeline (rama → tests → PR → bump pointer)
+
+Doc canónico del pipeline integrado: [hapcosa/signalsTrading → docs/operacion/pipeline-git-docker.md](https://github.com/hapcosa/signalsTrading/blob/master/docs/operacion/pipeline-git-docker.md). Para cambios dentro de este repo:
+
+1. Rama `feat/<scope>-<resumen>` desde `master` (acá, en `AI_trader/`).
+2. Commits, push a `hapcosa/AI_trader`, PR contra `master` del submódulo, review, merge.
+3. En `hapcosa/signalsTrading`: rama propia + `git add AI_trader && git commit -m "chore: update AI_trader submodule"` + PR + merge.
+4. La validación end-to-end corre contra el repo principal: `scripts/test-compose.sh` con el SHA actualizado del submódulo. Por eso un cambio acá que rompa el wiring de `pineforge-api` con `dashboard-api` se detecta en el CI del padre, no en este repo aislado.
+
+Para cambios coordinados padre + submódulo: 2 PRs enlazados, mergear primero el del submódulo, después actualizar puntero y mergear el del padre (Caso C del doc canónico).
+
+Los `docker-compose.yml` dentro de este repo son para dev aislado del submódulo. Para signalsTrading manda el compose raíz del padre.
+
+---
+
 ## Rol del Desarrollador
 Ingeniero experto en trading algorítmico. Portar Pine Script v6 a Python con fidelidad matemática exacta. Dominio de SMC, indicadores Ehlers, análisis multi-timeframe.
 

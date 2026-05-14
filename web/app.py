@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from html import escape
 from pathlib import Path
@@ -17,6 +18,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from pineforge_ai.ai_clients.registry import get_provider_spec, provider_options_payload
 from pineforge_ai.config import ALL_INDICATORS, DEFAULT_EXCHANGE
 from pineforge_ai.runner import generate_prompt, generate_prompt_file
 
@@ -530,6 +532,7 @@ INDEX_HTML = """
       min-width: 0;
       position: relative;
     }
+    .field[hidden] { display: none !important; }
     .field.wide { grid-column: span 12; }
     .field.mid { grid-column: span 6; }
     label,
@@ -1334,7 +1337,7 @@ INDEX_HTML = """
       <div class="stat-grid">
         <div class="stat-row"><label>INTELIGENCIA</label><span class="val ok">100%</span></div>
         <div class="stat-row"><label>ANÁLISIS</label><span id="stat-analysis" class="val ok">ACTIVO</span></div>
-        <div class="stat-row"><label>MODELO</label><span id="stat-model" class="val">CLAUDE 4.6</span></div>
+        <div class="stat-row"><label>MODELO</label><span id="stat-model" class="val">CLAUDE / SONNET 4.6</span></div>
         <div class="stat-row"><label>LATENCIA</label><span id="stat-latency" class="val">— ms</span></div>
       </div>
 
@@ -1412,16 +1415,27 @@ INDEX_HTML = """
         </fieldset>
 
         <div class="field mid">
-          <label for="model">Modelo Claude</label>
-          <select id="model" name="model">
-            <option value="claude-sonnet-4-6" selected>Sonnet 4.6 — Recomendado</option>
-            <option value="claude-opus-4-7">Opus 4.7 — Mejor análisis</option>
-            <option value="claude-haiku-4-5-20251001">Haiku 4.5 — Más rápido</option>
+          <label for="provider">Proveedor IA</label>
+          <select id="provider" name="provider">
+            <option value="anthropic" selected>Claude</option>
+            <option value="openai">ChatGPT / OpenAI</option>
+            <option value="gemini">Gemini</option>
+            <option value="deepseek">DeepSeek</option>
           </select>
         </div>
 
         <div class="field mid">
-          <label for="api_key">Anthropic API Key</label>
+          <label for="model">Modelo</label>
+          <select id="model" name="model"></select>
+        </div>
+
+        <div id="custom-model-field" class="field mid" hidden>
+          <label for="custom_model">Modelo personalizado</label>
+          <input type="text" id="custom_model" name="custom_model" placeholder="provider-model-id">
+        </div>
+
+        <div class="field mid">
+          <label id="api-key-label" for="api_key">Anthropic API Key</label>
           <div class="input-shell has-icon">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="8" cy="14" r="4"/>
@@ -1454,7 +1468,7 @@ INDEX_HTML = """
         </button>
         <button id="btn-claude" type="button" class="btn btn-primary">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a4 4 0 00-4 4v1a4 4 0 00-2 7v1a4 4 0 004 4h4a4 4 0 004-4v-1a4 4 0 00-2-7V7a4 4 0 00-4-4z"/><path d="M9 11h6M9 14h6"/></svg>
-          Analizar con Claude
+          Analizar con IA
         </button>
         <button id="submit" type="submit" class="btn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12m0 0l-5-5m5 5l5-5M4 20h16"/></svg>
@@ -1492,7 +1506,7 @@ INDEX_HTML = """
 
     <div id="ai-panel" class="ai-response-panel" style="display:none">
       <div class="ai-response-header">
-        <span>Respuesta Claude</span>
+        <span id="ai-response-title">Respuesta IA</span>
         <span id="ai-meta" class="ai-response-meta"></span>
       </div>
       <div id="ai-body" class="ai-response-body"></div>
@@ -1501,15 +1515,23 @@ INDEX_HTML = """
   </div>
 
   <script>
+    const AI_PROVIDER_CONFIG = __AI_PROVIDER_CONFIG__;
     const form = document.querySelector("#runner-form");
     const statusEl = document.querySelector("#status");
     const submit = document.querySelector("#submit");
     const btnShow = document.querySelector("#btn-show");
     const btnClaude = document.querySelector("#btn-claude");
+    const providerSelect = document.querySelector("#provider");
+    const modelSelect = document.querySelector("#model");
+    const customModelField = document.querySelector("#custom-model-field");
+    const customModelInput = document.querySelector("#custom_model");
+    const apiKeyLabel = document.querySelector("#api-key-label");
+    const apiKeyInput = document.querySelector("#api_key");
     const promptPanel = document.querySelector("#prompt-panel");
     const promptTextarea = document.querySelector("#prompt-textarea");
     const copyBtn = document.querySelector("#copy-btn");
     const aiPanel = document.querySelector("#ai-panel");
+    const aiResponseTitle = document.querySelector("#ai-response-title");
     const aiBody = document.querySelector("#ai-body");
     const aiMeta = document.querySelector("#ai-meta");
     const statModel = document.querySelector("#stat-model");
@@ -1570,15 +1592,92 @@ INDEX_HTML = """
       } catch (_) {}
     }
 
-    function updateModelStat() {
-      const sel = form.model;
-      if (!sel || !statModel) return;
-      const opt = sel.options[sel.selectedIndex];
-      const label = (opt.text.split("—")[0] || "").trim();
-      statModel.textContent = label.toUpperCase();
+    const providersById = Object.fromEntries((AI_PROVIDER_CONFIG.providers || []).map((p) => [p.id, p]));
+
+    function currentProviderSpec() {
+      return providersById[providerSelect.value] || providersById[AI_PROVIDER_CONFIG.default_provider];
     }
-    if (form.model) form.model.addEventListener("change", updateModelStat);
-    updateModelStat();
+
+    function apiStorageKey(providerId) {
+      return `ai_trader_api_key_${providerId}`;
+    }
+
+    function saveApiKeyForProvider() {
+      const spec = currentProviderSpec();
+      try {
+        const v = apiKeyInput.value.trim();
+        if (v) localStorage.setItem(apiStorageKey(spec.id), v);
+        else localStorage.removeItem(apiStorageKey(spec.id));
+      } catch (_) {}
+    }
+
+    function loadApiKeyForProvider() {
+      const spec = currentProviderSpec();
+      try {
+        let saved = localStorage.getItem(apiStorageKey(spec.id)) || "";
+        if (!saved && spec.id === "anthropic") saved = localStorage.getItem("ai_trader_anthropic_key") || "";
+        apiKeyInput.value = saved;
+      } catch (_) {
+        apiKeyInput.value = "";
+      }
+    }
+
+    function selectedModelValue() {
+      if (modelSelect.value === "__custom__") return customModelInput.value.trim();
+      return modelSelect.value;
+    }
+
+    function selectedModelLabel() {
+      if (modelSelect.value === "__custom__") return customModelInput.value.trim() || "custom";
+      const opt = modelSelect.options[modelSelect.selectedIndex];
+      return ((opt && opt.textContent) || modelSelect.value || "").split(" - ")[0].trim();
+    }
+
+    function renderModelOptions(spec) {
+      modelSelect.innerHTML = "";
+      (spec.models || []).forEach((model, idx) => {
+        const opt = document.createElement("option");
+        opt.value = model.id;
+        opt.textContent = model.label;
+        if (idx === 0) opt.selected = true;
+        modelSelect.appendChild(opt);
+      });
+      const custom = document.createElement("option");
+      custom.value = "__custom__";
+      custom.textContent = "Otro modelo...";
+      modelSelect.appendChild(custom);
+      if (spec.default_model && [...modelSelect.options].some((opt) => opt.value === spec.default_model)) {
+        modelSelect.value = spec.default_model;
+      }
+      if (!modelSelect.value && modelSelect.options.length) modelSelect.selectedIndex = 0;
+    }
+
+    function updateModelStat() {
+      if (!statModel) return;
+      const spec = currentProviderSpec();
+      const modelLabel = selectedModelLabel();
+      statModel.textContent = `${spec.name} / ${modelLabel}`.toUpperCase();
+    }
+
+    function updateProviderUi() {
+      const spec = currentProviderSpec();
+      renderModelOptions(spec);
+      apiKeyLabel.textContent = spec.key_label;
+      apiKeyInput.placeholder = spec.key_placeholder;
+      loadApiKeyForProvider();
+      customModelField.hidden = modelSelect.value !== "__custom__";
+      updateModelStat();
+    }
+
+    providerSelect.addEventListener("change", updateProviderUi);
+    modelSelect.addEventListener("change", () => {
+      customModelField.hidden = modelSelect.value !== "__custom__";
+      updateModelStat();
+    });
+    customModelInput.addEventListener("input", updateModelStat);
+    apiKeyInput.addEventListener("input", saveApiKeyForProvider);
+    apiKeyInput.addEventListener("change", saveApiKeyForProvider);
+    updateProviderUi();
 
     const SYMBOLS = [
       "BTC/USDT","ETH/USDT","SOL/USDT","BNB/USDT","XRP/USDT","DOGE/USDT","ADA/USDT","AVAX/USDT",
@@ -1847,7 +1946,7 @@ INDEX_HTML = """
         promptPanel.style.display = "block";
         promptPanel.scrollIntoView({ behavior: "smooth", block: "start" });
         statusEl.className = "status done";
-        statusEl.textContent = "Prompt listo. Puedes enviarlo a Claude.";
+        statusEl.textContent = "Prompt listo. Puedes enviarlo a la IA seleccionada.";
       } catch (error) {
         statusEl.className = "status error";
         statusEl.textContent = error.message;
@@ -1862,35 +1961,43 @@ INDEX_HTML = """
         return;
       }
       const apiKey = apiKeyInput.value.trim();
+      const provider = providerSelect.value;
+      const providerSpec = currentProviderSpec();
+      const model = selectedModelValue();
       if (!apiKey) {
-        showToast("Ingresa tu <b>Anthropic API Key</b> arriba para analizar con Claude.", "error", 6000);
+        showToast("Ingresa tu <b>" + providerSpec.key_label + "</b> arriba para analizar.", "error", 6000);
         apiKeyInput.focus();
+        return;
+      }
+      if (!model) {
+        showToast("Ingresa un <b>modelo</b> para " + providerSpec.name + ".", "error", 6000);
+        customModelInput.focus();
         return;
       }
       statusEl.className = "status";
       statusEl.textContent = "";
-      statusEl.innerHTML = '<span class="spinner"></span>Enviando a Claude...';
+      statusEl.innerHTML = '<span class="spinner"></span>Enviando a ' + providerSpec.name + '...';
       setLoading(true);
       aiPanel.style.display = "none";
       if (statAnalysis) { statAnalysis.textContent = "ANALIZANDO"; statAnalysis.classList.remove("ok"); }
 
       const t0 = performance.now();
       try {
-        const model = form.model.value;
         const mode = lastMode || form.mode.value;
         const response = await fetch("/api/send-to-ai", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, model, mode, api_key: apiKey })
+          body: JSON.stringify({ prompt, provider, model, mode, api_key: apiKey })
         });
         if (!response.ok) {
-          let detail = "Error al llamar a Claude.";
+          let detail = "Error al llamar a " + providerSpec.name + ".";
           try { const d = await response.json(); detail = d.detail || detail; } catch (_) {}
           throw new Error(detail);
         }
         const data = await response.json();
         const dt = Math.round(performance.now() - t0);
         if (statLatency) statLatency.textContent = dt + " ms";
+        if (aiResponseTitle) aiResponseTitle.textContent = "Respuesta " + providerSpec.name;
         aiBody.textContent = data.response || "";
         aiMeta.textContent = fmtTokens(data.usage) + (data.model ? "  |  " + data.model : "");
         aiPanel.style.display = "block";
@@ -1959,20 +2066,7 @@ INDEX_HTML = """
       });
     });
 
-    // ─── API Key persistente en localStorage ─────────────────────────────────
-    const apiKeyInput = document.querySelector("#api_key");
-    const STORAGE_KEY = "ai_trader_anthropic_key";
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) apiKeyInput.value = saved;
-    } catch (_) {}
-    apiKeyInput.addEventListener("change", () => {
-      try {
-        const v = apiKeyInput.value.trim();
-        if (v) localStorage.setItem(STORAGE_KEY, v);
-        else localStorage.removeItem(STORAGE_KEY);
-      } catch (_) {}
-    });
+    // API keys are persisted per provider in localStorage.
 
     copyBtn.addEventListener("click", async () => {
       const text = promptTextarea.value;
@@ -2043,7 +2137,7 @@ INDEX_HTML = """
         <!-- TAB: INICIO -->
         <div id="tut-inicio" class="tut-page active">
           <h2>¿Qué es AI Trader?</h2>
-          <p>AI Trader es una terminal de análisis de mercados. Descarga datos de precios en tiempo real, calcula indicadores técnicos avanzados y envía un análisis completo a Claude AI, que responde con zonas clave, setups de entrada y niveles de riesgo.</p>
+          <p>AI Trader es una terminal de análisis de mercados. Descarga datos de precios en tiempo real, calcula indicadores técnicos avanzados y envía un análisis completo al proveedor IA elegido, que responde con zonas clave, setups de entrada y niveles de riesgo.</p>
           <div class="tut-highlight">
             <strong>AI Trader analiza — no opera.</strong> No ejecuta órdenes ni mueve dinero. Es una herramienta de análisis para ayudarte a tomar decisiones.
           </div>
@@ -2051,12 +2145,12 @@ INDEX_HTML = """
           <div class="tut-flow">
             <div class="tut-flow-step"><span class="tut-flow-n">1</span><span class="tut-flow-label">Escribe el símbolo que quieres analizar</span></div>
             <div class="tut-flow-step"><span class="tut-flow-n">2</span><span class="tut-flow-label">Selecciona timeframes e indicadores</span></div>
-            <div class="tut-flow-step"><span class="tut-flow-n">3</span><span class="tut-flow-label">Haz clic en "Analizar con Claude"</span></div>
+            <div class="tut-flow-step"><span class="tut-flow-n">3</span><span class="tut-flow-label">Haz clic en "Analizar con IA"</span></div>
           </div>
           <h3>Qué necesitas</h3>
           <ul class="tut-steps">
             <li><div class="tut-step-n">✓</div><div>Conexión a internet (para descargar datos del mercado)</div></li>
-            <li><div class="tut-step-n">✓</div><div>Una clave API de Anthropic para que Claude AI responda — ver pestaña <strong>API Key</strong></div></li>
+            <li><div class="tut-step-n">✓</div><div>Una clave API del proveedor que elijas: Anthropic, OpenAI, Gemini o DeepSeek — ver pestaña <strong>API Key</strong></div></li>
           </ul>
           <h3>Activos soportados</h3>
           <p>Puedes analizar cualquiera de estos tipos de activos:</p>
@@ -2120,13 +2214,13 @@ INDEX_HTML = """
                 <td>Dejar todos activados</td>
               </tr>
               <tr>
-                <td>Modelo Claude</td>
-                <td>El modelo de IA que analiza el mercado.<br><strong>Sonnet</strong>: rápido y equilibrado.<br><strong>Opus</strong>: más profundo pero más lento.</td>
+                <td>Proveedor y modelo IA</td>
+                <td>El proveedor y modelo que analiza el mercado. Puedes usar Claude, ChatGPT/OpenAI, Gemini, DeepSeek o escribir un modelo personalizado.</td>
                 <td><strong>Sonnet 4.6</strong> para uso diario</td>
               </tr>
               <tr>
                 <td>API Key</td>
-                <td>Tu clave personal de Anthropic. Sin ella, no se puede enviar a Claude AI.</td>
+                <td>Tu clave personal del proveedor seleccionado. Sin ella, no se puede enviar el análisis por API.</td>
                 <td>Ver pestaña <strong>API Key</strong> para obtenerla</td>
               </tr>
               <tr>
@@ -2141,7 +2235,7 @@ INDEX_HTML = """
             <thead><tr><th>Botón</th><th>Qué hace</th></tr></thead>
             <tbody>
               <tr><td>Mostrar Prompt</td><td>Genera y muestra el texto que se le envía a la IA. Útil para revisar los datos antes de enviar.</td></tr>
-              <tr><td>Analizar con Claude</td><td>Envía el análisis completo a Claude y muestra la respuesta con zonas clave, setups y niveles de riesgo.</td></tr>
+              <tr><td>Analizar con IA</td><td>Envía el análisis completo al proveedor seleccionado y muestra la respuesta con zonas clave, setups y niveles de riesgo.</td></tr>
               <tr><td>Descargar</td><td>Guarda el prompt generado como archivo de texto en tu computadora.</td></tr>
             </tbody>
           </table>
@@ -2150,7 +2244,7 @@ INDEX_HTML = """
         <!-- TAB: INDICADORES -->
         <div id="tut-indicadores" class="tut-page">
           <h2>Indicadores técnicos</h2>
-          <p>Cada indicador mide un aspecto diferente del mercado. Juntos dan una visión completa antes de que Claude AI haga su análisis.</p>
+          <p>Cada indicador mide un aspecto diferente del mercado. Juntos dan una visión completa antes de que la IA haga su análisis.</p>
           <table class="tut-table">
             <thead><tr><th>Indicador</th><th>Qué detecta</th><th>Útil para</th></tr></thead>
             <tbody>
@@ -2192,37 +2286,37 @@ INDEX_HTML = """
             </tbody>
           </table>
           <div class="tut-highlight">
-            <strong>Consejo:</strong> No necesitas entender cada indicador en detalle — Claude AI interpreta todos los datos juntos y te explica en lenguaje claro qué está pasando y qué zonas son relevantes.
+            <strong>Consejo:</strong> No necesitas entender cada indicador en detalle — la IA interpreta todos los datos juntos y te explica en lenguaje claro qué está pasando y qué zonas son relevantes.
           </div>
         </div>
 
         <!-- TAB: API KEY -->
         <div id="tut-apikey" class="tut-page">
           <h2>Cómo obtener tu API Key</h2>
-          <p>Para que Claude AI analice el mercado necesitas una clave API de Anthropic. Es gratuita registrarse; los análisis se cobran por uso (muy bajo coste por análisis).</p>
+          <p>Para que la IA analice el mercado necesitas una clave API del proveedor seleccionado. Cada proveedor cobra por uso según su propia cuenta y modelo.</p>
           <h3>Pasos</h3>
           <ul class="tut-steps">
-            <li><div class="tut-step-n">1</div><div>Abre tu navegador y ve a:<br><span class="tut-code">console.anthropic.com</span></div></li>
+            <li><div class="tut-step-n">1</div><div>Abre la consola del proveedor que vas a usar: Anthropic, OpenAI, Google AI Studio o DeepSeek.</div></li>
             <li><div class="tut-step-n">2</div><div>Crea una cuenta o inicia sesión con tu email.</div></li>
-            <li><div class="tut-step-n">3</div><div>En el menú lateral, haz clic en <strong>"API Keys"</strong>.</div></li>
-            <li><div class="tut-step-n">4</div><div>Haz clic en el botón <strong>"Create Key"</strong>.</div></li>
-            <li><div class="tut-step-n">5</div><div>Copia la clave. Empieza con <span class="tut-code">sk-ant-</span></div></li>
-            <li><div class="tut-step-n">6</div><div>Pégala en el campo <strong>"API Key"</strong> de esta página. Se guarda automáticamente en tu navegador.</div></li>
+            <li><div class="tut-step-n">3</div><div>Busca la sección <strong>"API Keys"</strong> o <strong>"Keys"</strong>.</div></li>
+            <li><div class="tut-step-n">4</div><div>Crea una nueva clave API.</div></li>
+            <li><div class="tut-step-n">5</div><div>Copia la clave y selecciona el mismo proveedor en AI Trader.</div></li>
+            <li><div class="tut-step-n">6</div><div>Pégala en el campo <strong>"API Key"</strong> de esta página. Se guarda automáticamente en tu navegador por proveedor.</div></li>
           </ul>
           <div class="tut-warn">
-            ⚠ No compartas tu API Key con nadie. Es como una contraseña. Si crees que fue expuesta, elimínala en console.anthropic.com y crea una nueva.
+            ⚠ No compartas tu API Key con nadie. Es como una contraseña. Si crees que fue expuesta, elimínala en la consola del proveedor y crea una nueva.
           </div>
-          <h3>Coste aproximado</h3>
+          <h3>Coste</h3>
           <table class="tut-table">
-            <thead><tr><th>Modelo</th><th>Coste por análisis</th><th>Características</th></tr></thead>
+            <thead><tr><th>Tipo</th><th>Uso recomendado</th><th>Características</th></tr></thead>
             <tbody>
-              <tr><td>Sonnet 4.6</td><td>~$0.01 – $0.05</td><td>Rápido, preciso, uso diario</td></tr>
-              <tr><td>Opus 4.7</td><td>~$0.05 – $0.20</td><td>Análisis más profundo, más lento</td></tr>
-              <tr><td>Haiku 4.5</td><td>~$0.001 – $0.01</td><td>El más económico, menos detalle</td></tr>
+              <tr><td>Modelo rápido</td><td>Uso diario</td><td>Menor latencia y menor coste por análisis</td></tr>
+              <tr><td>Modelo profundo</td><td>Mayor precisión</td><td>Más razonamiento, más latencia y mayor coste</td></tr>
+              <tr><td>Modelo personalizado</td><td>Pruebas avanzadas</td><td>Depende de la disponibilidad de tu proveedor</td></tr>
             </tbody>
           </table>
           <div class="tut-highlight">
-            Anthropic ofrece créditos gratuitos al registrarse. Consulta el pricing actual en <strong>anthropic.com/pricing</strong>.
+            Revisa el pricing actual del proveedor elegido antes de analizar. Modelos más profundos suelen tardar más y costar más.
           </div>
         </div>
 
@@ -2241,7 +2335,7 @@ INDEX_HTML = """
             </div>
             <div class="tut-faq-item">
               <div class="tut-faq-q">¿Cuánto tarda el análisis?</div>
-              <div class="tut-faq-a">Entre 15 y 60 segundos. Depende del número de timeframes e indicadores activados, y del modelo Claude elegido. Sonnet es el más rápido.</div>
+              <div class="tut-faq-a">Entre 15 y 60 segundos. Depende del número de timeframes e indicadores activados, del proveedor y del modelo elegido.</div>
             </div>
             <div class="tut-faq-item">
               <div class="tut-faq-q">El análisis dice "Symbol not found" — ¿qué hago?</div>
@@ -2249,19 +2343,19 @@ INDEX_HTML = """
             </div>
             <div class="tut-faq-item">
               <div class="tut-faq-q">¿Es segura mi API Key?</div>
-              <div class="tut-faq-a">La clave se guarda únicamente en tu navegador (localStorage). No se envía a ningún servidor de AI Trader — solo se usa directamente para comunicarse con la API de Anthropic.</div>
+              <div class="tut-faq-a">La clave se guarda únicamente en tu navegador (localStorage), separada por proveedor. Solo se usa para comunicarse con la API seleccionada.</div>
             </div>
             <div class="tut-faq-item">
               <div class="tut-faq-q">¿Puedo usar el análisis para operar en real?</div>
               <div class="tut-faq-a">El análisis es una herramienta de apoyo, no una señal automática. Siempre combínalo con tu propio criterio y gestión de riesgo. Trading conlleva riesgo de pérdida de capital.</div>
             </div>
             <div class="tut-faq-item">
-              <div class="tut-faq-q">El botón "Analizar con Claude" no responde — ¿qué pasa?</div>
-              <div class="tut-faq-a">Verifica que: (1) has introducido una API Key válida, (2) tienes créditos en tu cuenta Anthropic, (3) el símbolo es correcto. Si el error persiste, prueba con "Mostrar Prompt" primero para confirmar que los datos se descargan correctamente.</div>
+              <div class="tut-faq-q">El botón "Analizar con IA" no responde — ¿qué pasa?</div>
+              <div class="tut-faq-a">Verifica que: (1) has introducido una API Key válida del proveedor seleccionado, (2) tienes créditos en esa cuenta, (3) el símbolo es correcto. Si el error persiste, prueba con "Mostrar Prompt" primero para confirmar que los datos se descargan correctamente.</div>
             </div>
             <div class="tut-faq-item">
-              <div class="tut-faq-q">¿Qué diferencia hay entre Mostrar Prompt y Analizar con Claude?</div>
-              <div class="tut-faq-a">"Mostrar Prompt" solo genera el texto con los datos de mercado — no usa créditos de API. "Analizar con Claude" envía ese texto a la IA y consume créditos. Puedes usar "Mostrar Prompt" para revisar los datos sin coste.</div>
+              <div class="tut-faq-q">¿Qué diferencia hay entre Mostrar Prompt y Analizar con IA?</div>
+              <div class="tut-faq-a">"Mostrar Prompt" solo genera el texto con los datos de mercado — no usa créditos de API. "Analizar con IA" envía ese texto al proveedor elegido y consume créditos. Puedes usar "Mostrar Prompt" para revisar los datos sin coste.</div>
             </div>
           </div>
         </div>
@@ -2352,6 +2446,10 @@ def index() -> HTMLResponse:
             "__INDICATOR_OPTIONS__",
             _checkboxes("indicators", list(ALL_INDICATORS), set(ALL_INDICATORS)),
         )
+        .replace(
+            "__AI_PROVIDER_CONFIG__",
+            json.dumps(provider_options_payload(), ensure_ascii=False),
+        )
     )
     return HTMLResponse(html)
 
@@ -2364,6 +2462,7 @@ def options() -> JSONResponse:
             "default_timeframes": sorted(DEFAULT_WEB_TIMEFRAMES),
             "indicators": ALL_INDICATORS,
             "default_exchange": DEFAULT_EXCHANGE,
+            "ai_providers": provider_options_payload(),
         }
     )
 
@@ -2466,21 +2565,25 @@ async def send_to_ai_endpoint(request: Request) -> JSONResponse:
         if not prompt:
             raise ValueError("prompt is required")
 
-        model = str(payload.get("model", "claude-sonnet-4-6")).strip() or "claude-sonnet-4-6"
+        provider = str(payload.get("provider", "anthropic")).strip() or "anthropic"
+        provider_spec = get_provider_spec(provider)
+        model = str(payload.get("model", provider_spec.default_model)).strip() or provider_spec.default_model
         mode = str(payload.get("mode", "mindset")).strip() or "mindset"
 
         api_key = str(payload.get("api_key", "")).strip()
-        if not api_key:
+        if not api_key and not os.environ.get(provider_spec.env_var):
             raise ValueError(
-                "API Key requerida. Ingresa tu Anthropic API Key en el formulario."
-            )
-        if not api_key.startswith("sk-ant-"):
-            raise ValueError(
-                "Formato de API Key inválido. Debe comenzar con 'sk-ant-'."
+                f"API Key requerida. Ingresa tu {provider_spec.key_label} en el formulario."
             )
 
-        from pineforge_ai.prompt_builder import call_claude_raw
-        result = call_claude_raw(prompt=prompt, api_key=api_key, model=model, mode=mode)
+        from pineforge_ai.prompt_builder import call_ai_raw
+        result = call_ai_raw(
+            prompt=prompt,
+            api_key=api_key or None,
+            provider=provider_spec.id,
+            model=model,
+            mode=mode,
+        )
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

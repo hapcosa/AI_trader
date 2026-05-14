@@ -6,13 +6,14 @@ Usage:
     python -m pineforge_ai.cli --symbol BTC/USDT --mode mindset --timeframes 15m,1h,4h --days 7
     python -m pineforge_ai.cli --symbol BTC/USDT --timeframes 1h,4h,1d --candles 300
     python -m pineforge_ai.cli --symbol BTC/USDT --indicators wavetrend,smc --no-context
-    python -m pineforge_ai.cli --symbol BTC/USDT --send-to-ai --api-key $KEY
+    python -m pineforge_ai.cli --symbol BTC/USDT --send-to-ai --provider openai --api-key $KEY
 """
 
 from __future__ import annotations
 
 import click
 
+from pineforge_ai.ai_clients.registry import DEFAULT_PROVIDER, supported_providers
 from pineforge_ai.config import (
     ALL_INDICATORS,
     DEFAULT_DAYS,
@@ -49,9 +50,10 @@ from pineforge_ai.runner import generate_prompt
 @click.option("--output", default=DEFAULT_OUTPUT_DIR, show_default=True)
 @click.option("--no-save", is_flag=True, default=False, help="Print to stdout instead of saving")
 @click.option("--no-context", is_flag=True, default=False, help="Skip correlations + volatility context")
-@click.option("--send-to-ai", is_flag=True, default=False, help="Call Anthropic API after building prompt")
-@click.option("--api-key", default=None, help="Anthropic API key (or env ANTHROPIC_API_KEY)")
-@click.option("--model", default="claude-opus-4-7", show_default=True)
+@click.option("--send-to-ai", is_flag=True, default=False, help="Call AI provider API after building prompt")
+@click.option("--provider", default=DEFAULT_PROVIDER, show_default=True, type=click.Choice(supported_providers()))
+@click.option("--api-key", default=None, help="Provider API key, or provider-specific env var")
+@click.option("--model", default=None, help="Provider model id. Defaults to selected provider default.")
 @click.option(
     "--mode",
     default="signal",
@@ -71,6 +73,7 @@ def main(
     no_save,
     no_context,
     send_to_ai,
+    provider,
     api_key,
     model,
     mode,
@@ -88,6 +91,7 @@ def main(
             no_context=no_context,
             send_to_ai=send_to_ai,
             api_key=api_key,
+            provider=provider,
             model=model,
             mode=mode,
             save=not no_save,

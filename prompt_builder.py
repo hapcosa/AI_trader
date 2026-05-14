@@ -4,7 +4,7 @@ Modes: 'signal' (JSON setups) | 'mindset' (Pre-NY Protocol checklist).
 
 Includes WaveTrend, LuxAlgo AMO, SMC Buda, WAE+Chop, Ehlers iTrend, ICT, Trendlines,
 USDT Dominance, 14D OHLCV history, correlations and volatility context.
-Implements send_to_ai() against Anthropic API with prompt caching.
+Implements send_to_ai() against Claude, OpenAI, Gemini, and DeepSeek APIs.
 """
 
 from __future__ import annotations
@@ -925,67 +925,81 @@ def save_prompt(prompt_text: str, symbol: str, output_dir: str = "pineforge_ai/o
     return os.path.abspath(fp)
 
 
-# ─── Anthropic API call ───────────────────────────────────────────────────────
+# ─── AI provider calls ────────────────────────────────────────────────────────
+
+
+def _system_prompt_for_mode(mode: str, system_prompt: str | None = None) -> str:
+    if system_prompt:
+        return system_prompt
+    return SYSTEM_PROMPT_MINDSET if mode == "mindset" else SYSTEM_PROMPT
+
+
+def _strip_code_fence(text: str) -> str:
+    full = text.strip()
+    if full.startswith("```"):
+        first_nl = full.find("\n")
+        last_fence = full.rfind("```")
+        if first_nl >= 0 and last_fence > first_nl:
+            full = full[first_nl + 1: last_fence].strip()
+    return full
+
+
+def call_ai_raw(
+    prompt: str,
+    api_key: str | None = None,
+    provider: str = "anthropic",
+    model: str | None = None,
+    max_tokens: int = 8096,
+    mode: str = "mindset",
+    system_prompt: str | None = None,
+) -> dict:
+    """Call the selected AI provider and return raw text response."""
+    from pineforge_ai.ai_clients.client import call_ai_raw as _call_ai_raw
+
+    return _call_ai_raw(
+        provider=provider,
+        prompt=prompt,
+        api_key=api_key,
+        model=model,
+        max_tokens=max_tokens,
+        system_prompt=_system_prompt_for_mode(mode, system_prompt),
+    )
 
 def send_to_ai(
     prompt: str,
     api_key: str | None = None,
-    model: str = "claude-opus-4-7",
+    model: str | None = None,
+    provider: str = "anthropic",
     max_tokens: int = 4096,
     system_prompt: str | None = None,
     mode: str = "signal",
 ) -> dict:
     """
-    Send prompt to Anthropic API. System prompt is cached (cache_control=ephemeral).
+    Send prompt to the selected AI provider.
 
-    Returns parsed JSON dict from Claude's response.
+    Returns parsed JSON dict from the provider response.
     """
-    try:
-        import anthropic
-    except ImportError as e:
-        raise ImportError("Install with: pip install anthropic") from e
-
-    if api_key is None:
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise ValueError("Missing ANTHROPIC_API_KEY (env var or api_key arg).")
-
-    if system_prompt:
-        sys_text = system_prompt
-    elif mode == "mindset":
-        sys_text = SYSTEM_PROMPT_MINDSET
-    else:
-        sys_text = SYSTEM_PROMPT
-
-    client = anthropic.Anthropic(api_key=api_key)
-    resp = client.messages.create(
+    raw = call_ai_raw(
+        prompt=prompt,
+        api_key=api_key,
+        provider=provider,
         model=model,
         max_tokens=max_tokens,
-        system=[{"type": "text", "text": sys_text, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": prompt}],
+        mode=mode,
+        system_prompt=system_prompt,
     )
-
-    text_parts = [b.text for b in resp.content if getattr(b, "type", "") == "text"]
-    full = "\n".join(text_parts).strip()
-
-    if full.startswith("```"):
-        first_nl = full.find("\n")
-        last_fence = full.rfind("```")
-        full = full[first_nl + 1: last_fence].strip()
+    full = _strip_code_fence(str(raw.get("response", "")))
 
     try:
         data = json.loads(full)
     except json.JSONDecodeError as e:
-        raise ValueError(f"Claude response not valid JSON: {e}\nRaw: {full[:500]}") from e
+        raise ValueError(f"AI response not valid JSON: {e}\nRaw: {full[:500]}") from e
 
-    usage = getattr(resp, "usage", None)
-    if usage is not None:
-        data["_usage"] = {
-            "input_tokens":                getattr(usage, "input_tokens", None),
-            "output_tokens":               getattr(usage, "output_tokens", None),
-            "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", None),
-            "cache_read_input_tokens":     getattr(usage, "cache_read_input_tokens", None),
-        }
+    usage = raw.get("usage") or {}
+    if usage:
+        data["_usage"] = usage
+    data["_provider"] = raw.get("provider", provider)
+    data["_model"] = raw.get("model", model)
     return data
 
 
@@ -997,37 +1011,11 @@ def call_claude_raw(
     mode: str = "mindset",
 ) -> dict:
     """Call Claude API and return raw text response (no JSON parsing)."""
-    try:
-        import anthropic
-    except ImportError as e:
-        raise ImportError("Install with: pip install anthropic") from e
-
-    if api_key is None:
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY not set in environment or .env")
-
-    sys_text = SYSTEM_PROMPT_MINDSET if mode == "mindset" else SYSTEM_PROMPT
-
-    client = anthropic.Anthropic(api_key=api_key)
-    resp = client.messages.create(
+    return call_ai_raw(
+        prompt=prompt,
+        api_key=api_key,
+        provider="anthropic",
         model=model,
         max_tokens=max_tokens,
-        system=[{"type": "text", "text": sys_text, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": prompt}],
+        mode=mode,
     )
-
-    text_parts = [b.text for b in resp.content if getattr(b, "type", "") == "text"]
-    response_text = "\n".join(text_parts).strip()
-
-    usage = getattr(resp, "usage", None)
-    usage_dict = {}
-    if usage is not None:
-        usage_dict = {
-            "input_tokens":                getattr(usage, "input_tokens", 0),
-            "output_tokens":               getattr(usage, "output_tokens", 0),
-            "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", 0),
-            "cache_read_input_tokens":     getattr(usage, "cache_read_input_tokens", 0),
-        }
-
-    return {"response": response_text, "model": model, "usage": usage_dict}
