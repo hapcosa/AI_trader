@@ -18,7 +18,12 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from pineforge_ai.ai_clients.registry import get_provider_spec, provider_options_payload
+from pineforge_ai.ai_clients.registry import (
+    DEFAULT_PROVIDER,
+    get_provider_spec,
+    provider_catalog,
+    provider_options_payload,
+)
 from pineforge_ai.config import ALL_INDICATORS, DEFAULT_EXCHANGE
 from pineforge_ai.runner import generate_prompt, generate_prompt_file
 
@@ -2456,13 +2461,20 @@ def index() -> HTMLResponse:
 
 @app.get("/api/options")
 def options() -> JSONResponse:
+    # `ai_providers` is the flat catalog consumed by the dashboard
+    # (`/api/ai/options` decorates each entry with `available` per user).
+    # `legacy_ai_providers` keeps the original {default_provider, providers}
+    # shape consumed by the bundled HTML index template; both come from
+    # the same source of truth in ai_clients.registry.
     return JSONResponse(
         {
             "timeframes": TIMEFRAME_ORDER,
             "default_timeframes": sorted(DEFAULT_WEB_TIMEFRAMES),
             "indicators": ALL_INDICATORS,
             "default_exchange": DEFAULT_EXCHANGE,
-            "ai_providers": provider_options_payload(),
+            "default_provider": DEFAULT_PROVIDER,
+            "ai_providers": provider_catalog(),
+            "legacy_ai_providers": provider_options_payload(),
         }
     )
 
