@@ -121,3 +121,26 @@ def provider_options_payload() -> dict[str, object]:
         "default_provider": DEFAULT_PROVIDER,
         "providers": [PROVIDERS[key].as_dict() for key in supported_providers()],
     }
+
+
+def provider_catalog() -> list[dict[str, object]]:
+    """Flat list of providers, shape consumed by dashboard /api/ai/options.
+
+    Each entry:
+        {id, label, env_var, default_model,
+         models: [{id, label}, ...]}
+
+    The dashboard decorates each row with `available` (per-user) before
+    serving the frontend; this catalog itself is user-agnostic and
+    cacheable.
+    """
+    return [
+        {
+            "id": spec.id,
+            "label": spec.name,
+            "env_var": spec.env_var,
+            "default_model": spec.default_model,
+            "models": [m.as_dict() for m in spec.models],
+        }
+        for spec in (PROVIDERS[key] for key in supported_providers())
+    ]
