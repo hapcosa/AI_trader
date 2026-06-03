@@ -26,7 +26,9 @@ WARMUP_BARS = 150
 
 DEFAULT_TIMEFRAMES: list[str] = ["1h", "4h", "1d"]
 ALL_INDICATORS: list[str] = [
-    "wavetrend", "luxalgo", "smc", "wae", "itrend", "ict", "trendlines"
+    "wavetrend", "luxalgo", "smc", "wae", "itrend", "ict", "trendlines",
+    # BudAI pineforge oscillators (ports mirror KryptoLab strategies)
+    "pulse", "abyss", "tide", "athenea",
 ]
 DEFAULT_INDICATORS: list[str] = ALL_INDICATORS
 DEFAULT_DAYS: int = 60

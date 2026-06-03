@@ -184,6 +184,28 @@ result = smc_analysis(df, ms_len=5, ob_len=10, fisher_period=14, fisher_extreme=
 # confluence      float   Confluence Score 0-10
 ```
 
+### Familia BudAI pineforge (osciladores)
+
+Ports pandas 1:1 de los Pine de `pineforge/Osciladores/*.pine`, espejo de las
+estrategias KryptoLab (paridad verificada con tests de transcripción Pine
+independiente). Cada módulo expone `budai_<x>(df, …)` → DataFrame,
+`budai_<x>_all_timeframes(dfs)` y `budai_<x>_summary(results)` (estado del último
+bar por TF para el prompt). Todos exponen `osc_source` (default `hlc3`, el del
+Pine; `close` en señales no aplicables).
+
+| Módulo | Fuente Pine | Núcleo | Señal |
+|--------|-------------|--------|-------|
+| `budai_pulse.py` | budai_pulse.pine | WaveTrend + COG + Momentum norm. 0-100 | cruce osc/trig + Money Flow |
+| `budai_abyss.py` | budai_abyss.pine | WaveTrend crudo (±100) | cruce wt1/wt2 en zona extrema + MF |
+| `budai_moneyflow_tide.py` | budai_moneyflow_tide.pine | doble MFI centrado ±100 | cruce fast/slow en zona OB/OS + MF |
+| `budai_athenea.py` | budai_athenea_oscillator.pine | WaveTrend + LinReg slope + COG + squeeze + Vix-Fix | cruce cíclico (o pánico) / squeeze release |
+
+Wiring: registrados en `config.ALL_INDICATORS` (`pulse`/`abyss`/`tide`/`athenea`),
+computados en `runner._compute_summaries` y renderizados por
+`prompt_builder._build_budai_*`. Tests en `tests/` (correr con un venv con
+pytest+pandas; `tests/conftest.py` aliasa `pineforge_ai`→repo root como en el
+runtime Docker `COPY . ./pineforge_ai`).
+
 ---
 
 ## Lógica de Descarga de Velas
