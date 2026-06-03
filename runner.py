@@ -112,6 +112,10 @@ def _build_indicator_summaries(dfs: dict, ind_list: list[str], emit: Emit | None
         "it": None,
         "ict": None,
         "tl": None,
+        "pulse": None,
+        "abyss": None,
+        "tide": None,
+        "athenea": None,
     }
 
     if "wavetrend" in ind_list:
@@ -179,6 +183,52 @@ def _build_indicator_summaries(dfs: dict, ind_list: list[str], emit: Emit | None
             _emit(emit, "      Trendlines OK")
         except Exception as e:
             _emit(emit, f"      Trendlines FAIL: {e}")
+
+    if "pulse" in ind_list:
+        try:
+            from pineforge_ai.indicators.budai_pulse import (
+                budai_pulse_all_timeframes, budai_pulse_summary,
+            )
+
+            summaries["pulse"] = budai_pulse_summary(budai_pulse_all_timeframes(dfs))
+            _emit(emit, "      BudAI Pulse OK")
+        except Exception as e:
+            _emit(emit, f"      BudAI Pulse FAIL: {e}")
+
+    if "abyss" in ind_list:
+        try:
+            from pineforge_ai.indicators.budai_abyss import (
+                budai_abyss_all_timeframes, budai_abyss_summary,
+            )
+
+            summaries["abyss"] = budai_abyss_summary(budai_abyss_all_timeframes(dfs))
+            _emit(emit, "      BudAI Abyss OK")
+        except Exception as e:
+            _emit(emit, f"      BudAI Abyss FAIL: {e}")
+
+    if "tide" in ind_list:
+        try:
+            from pineforge_ai.indicators.budai_moneyflow_tide import (
+                budai_moneyflow_tide_all_timeframes, budai_moneyflow_tide_summary,
+            )
+
+            summaries["tide"] = budai_moneyflow_tide_summary(
+                budai_moneyflow_tide_all_timeframes(dfs))
+            _emit(emit, "      BudAI Money Flow Tide OK")
+        except Exception as e:
+            _emit(emit, f"      BudAI Tide FAIL: {e}")
+
+    if "athenea" in ind_list:
+        try:
+            from pineforge_ai.indicators.budai_athenea import (
+                budai_athenea_all_timeframes, budai_athenea_summary,
+            )
+
+            summaries["athenea"] = budai_athenea_summary(
+                budai_athenea_all_timeframes(dfs))
+            _emit(emit, "      BudAI Athenea OK")
+        except Exception as e:
+            _emit(emit, f"      BudAI Athenea FAIL: {e}")
 
     return summaries
 
@@ -368,6 +418,10 @@ def generate_prompt(
         ict_sum=summaries["ict"],
         tl_summary=summaries["tl"],
         it_summary=summaries["it"],
+        pulse_summary=summaries["pulse"],
+        abyss_summary=summaries["abyss"],
+        tide_summary=summaries["tide"],
+        athenea_summary=summaries["athenea"],
         correlations=correlations,
         volatility=volatility,
         usdt_data=usdt_data,

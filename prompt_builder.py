@@ -844,6 +844,72 @@ Usa el FORMATO DE RESPUESTA definido arriba (secciones con ═══, NO JSON).
 
 # ─── Main Builder ─────────────────────────────────────────────────────────────
 
+def _build_budai_pulse(s, timeframes):
+    lines = [_section("BUDAI PULSE FLOW OSCILLATOR — MTF")]
+    lines.append(_row("TF", "Osc", "Trig", "Zone", "Trend", "Flow", "Signal",
+                      widths=[5, 7, 7, 11, 9, 14, 18]))
+    lines.append("-" * 78)
+    for tf in timeframes:
+        d = s.get(tf)
+        if d is None:
+            continue
+        lines.append(_row(tf.upper(), d.get("osc", "—"), d.get("trig", "—"),
+                          d.get("zone", "—"), d.get("trend", "—"),
+                          d.get("flow", "—"), d.get("signal", "—"),
+                          widths=[5, 7, 7, 11, 9, 14, 18]))
+    return "\n".join(lines)
+
+
+def _build_budai_abyss(s, timeframes):
+    lines = [_section("BUDAI ABYSS WAVE OSCILLATOR — MTF")]
+    lines.append(_row("TF", "WT1", "WT2", "Zone", "Trend", "Flow", "Signal",
+                      widths=[5, 8, 8, 19, 9, 14, 20]))
+    lines.append("-" * 88)
+    for tf in timeframes:
+        d = s.get(tf)
+        if d is None:
+            continue
+        lines.append(_row(tf.upper(), d.get("wt1", "—"), d.get("wt2", "—"),
+                          d.get("zone", "—"), d.get("trend", "—"),
+                          d.get("flow", "—"), d.get("signal", "—"),
+                          widths=[5, 8, 8, 19, 9, 14, 20]))
+    return "\n".join(lines)
+
+
+def _build_budai_tide(s, timeframes):
+    lines = [_section("BUDAI SMART MONEY FLOW TIDE — MTF")]
+    lines.append(_row("TF", "Fast", "Slow", "Zone", "Trend", "Flow", "Signal",
+                      widths=[5, 8, 8, 18, 9, 14, 20]))
+    lines.append("-" * 87)
+    for tf in timeframes:
+        d = s.get(tf)
+        if d is None:
+            continue
+        lines.append(_row(tf.upper(), d.get("fast", "—"), d.get("slow", "—"),
+                          d.get("zone", "—"), d.get("trend", "—"),
+                          d.get("flow", "—"), d.get("signal", "—"),
+                          widths=[5, 8, 8, 18, 9, 14, 20]))
+    return "\n".join(lines)
+
+
+def _build_budai_athenea(s, timeframes):
+    lines = [_section("BUDAI ATHENEA OSCILLATOR — MTF")]
+    lines.append(_row("TF", "Osc", "Trig", "Zone", "Trend", "Panic", "Squeeze", "Signal",
+                      widths=[5, 7, 7, 11, 9, 7, 9, 18]))
+    lines.append("-" * 86)
+    for tf in timeframes:
+        d = s.get(tf)
+        if d is None:
+            continue
+        lines.append(_row(tf.upper(), d.get("osc", "—"), d.get("trig", "—"),
+                          d.get("zone", "—"), d.get("trend", "—"),
+                          "yes" if d.get("panic") else "—",
+                          "release" if d.get("squeeze_release") else "—",
+                          d.get("signal", "—"),
+                          widths=[5, 7, 7, 11, 9, 7, 9, 18]))
+    return "\n".join(lines)
+
+
 def build_prompt(
     symbol: str,
     dfs: dict[str, pd.DataFrame],
@@ -856,6 +922,10 @@ def build_prompt(
     ict_sum: dict | None = None,
     tl_summary: dict | None = None,
     it_summary: dict | None = None,
+    pulse_summary: dict | None = None,
+    abyss_summary: dict | None = None,
+    tide_summary: dict | None = None,
+    athenea_summary: dict | None = None,
     correlations: dict | None = None,
     volatility: dict | None = None,
     pretrain_summary: list[str] | None = None,
@@ -889,6 +959,11 @@ def build_prompt(
     if smc_sum:      blocks.append(_build_smc(smc_sum, timeframes))
     if ict_sum:      blocks.append(_build_ict(ict_sum, timeframes))
     if tl_summary:   blocks.append(_build_trendlines(tl_summary, timeframes))
+
+    if pulse_summary:   blocks.append(_build_budai_pulse(pulse_summary, timeframes))
+    if abyss_summary:   blocks.append(_build_budai_abyss(abyss_summary, timeframes))
+    if tide_summary:    blocks.append(_build_budai_tide(tide_summary, timeframes))
+    if athenea_summary: blocks.append(_build_budai_athenea(athenea_summary, timeframes))
 
     if correlations: blocks.append(_build_correlations(correlations))
     if volatility:   blocks.append(_build_volatility(volatility, timeframes))
