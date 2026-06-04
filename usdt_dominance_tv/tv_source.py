@@ -48,26 +48,35 @@ class TVSource:
                 self._client = TvDatafeed()
         return self._client
 
-    def fetch_recent(self, n_bars: int) -> pd.DataFrame:
-        """Fetch the last n_bars 1-minute bars. Returns DataFrame with UTC index."""
+    def fetch_recent(
+        self,
+        n_bars: int,
+        symbol: str | None = None,
+        exchange: str | None = None,
+    ) -> pd.DataFrame:
+        """Fetch the last n_bars 1-minute bars. Returns DataFrame with UTC index.
+
+        ``symbol``/``exchange`` override the instance defaults so a single
+        client can serve several dominance series (USDT.D, BTC.D, OTHERS.D).
+        """
         n = max(1, min(int(n_bars), TV_MAX_BARS_PER_CALL))
         client = self._client_or_init()
         df = client.get_hist(
-            symbol=self.symbol,
-            exchange=self.exchange,
+            symbol=symbol or self.symbol,
+            exchange=exchange or self.exchange,
             interval=Interval.in_1_minute,
             n_bars=n,
         )
         return self._normalize(df)
 
-    def fetch_paged(self, total_bars: int) -> pd.DataFrame:
+    def fetch_paged(self, total_bars: int, symbol: str | None = None) -> pd.DataFrame:
         """
         Fetch up to total_bars by repeated calls. tvdatafeed-enhanced returns the
         most recent n_bars each call; for very large backfills we accept a single
         biggest-possible window (TV_MAX_BARS_PER_CALL) since the lib does not
         expose `before_ts` paging on every fork. Caller pages by date if needed.
         """
-        return self.fetch_recent(total_bars)
+        return self.fetch_recent(total_bars, symbol=symbol)
 
     @staticmethod
     def _normalize(df: pd.DataFrame | None) -> pd.DataFrame:

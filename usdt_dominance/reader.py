@@ -37,8 +37,20 @@ def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
     return row is not None
 
 
-def _load_bars(db_path: Path, days: int = 30) -> pd.DataFrame:
-    """Return DataFrame [open, high, low, close, volume] indexed by UTC datetime."""
+def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    return any(r[1] == column for r in conn.execute(f"PRAGMA table_info({table})"))
+
+
+def _load_bars(
+    db_path: Path,
+    days: int = 30,
+    symbol: str = "USDT.D",
+) -> pd.DataFrame:
+    """Return DataFrame [open, high, low, close, volume] indexed by UTC datetime.
+
+    ``symbol`` selects the dominance series in the multi-series ``bars_1m``
+    schema. Legacy single-series DBs (no ``symbol`` column) are read as-is.
+    """
     if not db_path.exists():
         return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
 
@@ -49,12 +61,20 @@ def _load_bars(db_path: Path, days: int = 30) -> pd.DataFrame:
         conn = sqlite3.connect(str(db_path), check_same_thread=False)
         conn.execute("PRAGMA journal_mode=WAL;")
         if _table_exists(conn, "bars_1m"):
-            df = pd.read_sql(
-                "SELECT ts, open, high, low, close, volume FROM bars_1m "
-                "WHERE ts >= ? ORDER BY ts ASC",
-                conn,
-                params=(cutoff_ts,),
-            )
+            if _has_column(conn, "bars_1m", "symbol"):
+                df = pd.read_sql(
+                    "SELECT ts, open, high, low, close, volume FROM bars_1m "
+                    "WHERE symbol = ? AND ts >= ? ORDER BY ts ASC",
+                    conn,
+                    params=(symbol, cutoff_ts),
+                )
+            else:
+                df = pd.read_sql(
+                    "SELECT ts, open, high, low, close, volume FROM bars_1m "
+                    "WHERE ts >= ? ORDER BY ts ASC",
+                    conn,
+                    params=(cutoff_ts,),
+                )
         elif _table_exists(conn, "ticks"):
             legacy = pd.read_sql(
                 "SELECT ts, usdt_pct FROM ticks WHERE ts >= ? ORDER BY ts ASC",
@@ -95,6 +115,7 @@ def get_ohlcv(
     timeframe: str = "1d",
     days: int = 30,
     db_path: Path = DB_PATH,
+    symbol: str = "USDT.D",
 ) -> pd.DataFrame:
     """
     Load 1-minute bars and resample to OHLCV at the given timeframe.
@@ -103,7 +124,7 @@ def get_ohlcv(
     and UTC DatetimeIndex. Empty DataFrame if no data available.
     """
     rule = RESAMPLE_RULES.get(timeframe, "1D")
-    bars = _load_bars(db_path, days=days)
+    bars = _load_bars(db_path, days=days, symbol=symbol)
     if bars.empty:
         return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
 
@@ -117,9 +138,9 @@ def get_ohlcv(
     return ohlcv
 
 
-def get_current_value(db_path: Path = DB_PATH) -> float | None:
+def get_current_value(db_path: Path = DB_PATH, symbol: str = "USDT.D") -> float | None:
     """Return most recent close value, or None if no data."""
-    bars = _load_bars(db_path, days=1)
+    bars = _load_bars(db_path, days=1, symbol=symbol)
     if bars.empty:
         return None
     return float(bars["close"].iloc[-1])
@@ -129,9 +150,10 @@ def get_trend(
     timeframe: str = "1h",
     lookback_periods: int = 3,
     db_path: Path = DB_PATH,
+    symbol: str = "USDT.D",
 ) -> str:
     """Classify trend as 'bull' | 'bear' | 'neutral' over last N candles."""
-    ohlcv = get_ohlcv(timeframe=timeframe, days=7, db_path=db_path)
+    ohlcv = get_ohlcv(timeframe=timeframe, days=7, db_path=db_path, symbol=symbol)
     if len(ohlcv) < lookback_periods + 1:
         return "neutral"
     recent = ohlcv["close"].iloc[-1]
