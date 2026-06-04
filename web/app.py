@@ -2479,6 +2479,46 @@ def options() -> JSONResponse:
     )
 
 
+@app.get("/api/indicators/summary")
+def indicators_summary(
+    symbol: str,
+    tf: str | None = None,
+    inds: str | None = None,
+    source: str = "auto",
+    exchange: str = DEFAULT_EXCHANGE,
+    candles: int = 300,
+) -> JSONResponse:
+    """Indicator summaries as JSON for the configurable notifier digest.
+
+    Query params:
+      symbol   — e.g. BTC/USDT, BTCUSDT, AAPL (required)
+      tf       — comma-separated timeframes (default: config default TFs)
+      inds     — comma-separated indicator names or 'all' (default: all)
+      source   — auto | ccxt | yfinance
+      exchange — ccxt exchange (default: binance)
+      candles  — bars per TF to fetch (default 300, > warmup)
+    """
+    from pineforge_ai.indicators_summary import build_indicators_summary
+
+    try:
+        result = build_indicators_summary(
+            symbol=symbol,
+            timeframes=tf,
+            indicators=inds,
+            source=source.strip() or "auto",
+            exchange=exchange.strip() or DEFAULT_EXCHANGE,
+            candles=candles,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    except Exception as e:  # pragma: no cover - defensive
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    return JSONResponse(result)
+
+
 @app.post("/api/generate")
 async def generate(request: Request) -> FileResponse:
     try:
