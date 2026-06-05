@@ -2519,6 +2519,44 @@ def indicators_summary(
     return JSONResponse(result)
 
 
+@app.get("/api/indicators/series")
+def indicators_series(
+    symbol: str,
+    ind: str,
+    tf: str = "1h",
+    source: str = "auto",
+    exchange: str = DEFAULT_EXCHANGE,
+    candles: int = 300,
+) -> JSONResponse:
+    """Oscillator series (osc/trig over time) for the user-facing live chart.
+
+    Query params:
+      symbol   — e.g. BTC/USDT, BTCUSDT, USDT.D (required)
+      ind      — one oscillator: pulse|abyss|tide|athenea|wavetrend (required)
+      tf       — timeframe (default 1h)
+      source   — auto | ccxt | yfinance
+      exchange — ccxt exchange (default: binance)
+      candles  — bars to return (default 300)
+    """
+    from pineforge_ai.indicators_series import build_indicator_series
+
+    try:
+        result = build_indicator_series(
+            symbol=symbol, timeframe=tf, indicator=ind,
+            source=source.strip() or "auto",
+            exchange=exchange.strip() or DEFAULT_EXCHANGE,
+            candles=candles,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    except Exception as e:  # pragma: no cover - defensive
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    return JSONResponse(result)
+
+
 @app.post("/api/generate")
 async def generate(request: Request) -> FileResponse:
     try:
