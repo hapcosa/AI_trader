@@ -89,6 +89,53 @@ def test_build_rejects_bad_candles():
         isum.build_indicators_summary(symbol="BTC/USDT", candles=0)
 
 
+# ─── dominance branch (reads the dominance SQLite, not ccxt) ────────
+
+def test_build_dominance_uses_reader(monkeypatch):
+    # ccxt path must NOT be touched for dominance symbols.
+    def _boom(**kw):
+        raise AssertionError("fetch_multi_timeframe should not be called for dominance")
+
+    monkeypatch.setattr("pineforge_ai.data.fetcher.fetch_multi_timeframe", _boom)
+    monkeypatch.setattr(
+        "pineforge_ai.usdt_dominance.reader.get_ohlcv",
+        lambda **kw: pd.DataFrame({"open": [1.0], "high": [1.0], "low": [1.0], "close": [1.0], "volume": [0.0]}),
+    )
+    monkeypatch.setattr(
+        isum, "_build_indicator_summaries",
+        lambda dfs, ind_list, emit: {"pulse": {"1h": {"trend": "↑ Bull", "zone": "OverSold"}}},
+    )
+
+    res = isum.build_indicators_summary(symbol="USDT.D", timeframes="1h", indicators="pulse")
+    assert res["source"] == "dominance"
+    assert res["symbol"] == "USDT.D"
+    assert res["summaries"]["pulse"]["1h"]["trend"] == "↑ Bull"
+
+
+def test_build_dominance_others_d_routes_to_reader(monkeypatch):
+    seen = {}
+
+    def _reader(**kw):
+        seen["symbol"] = kw.get("symbol")
+        return pd.DataFrame({"open": [1.0], "high": [1.0], "low": [1.0], "close": [1.0], "volume": [0.0]})
+
+    monkeypatch.setattr("pineforge_ai.usdt_dominance.reader.get_ohlcv", _reader)
+    monkeypatch.setattr(isum, "_build_indicator_summaries", lambda dfs, ind_list, emit: {"pulse": {"1h": {}}})
+
+    res = isum.build_indicators_summary(symbol="OTHERS.D", timeframes="1h", indicators="pulse")
+    assert res["source"] == "dominance"
+    assert seen["symbol"] == "OTHERS.D"
+
+
+def test_build_dominance_empty_raises(monkeypatch):
+    monkeypatch.setattr(
+        "pineforge_ai.usdt_dominance.reader.get_ohlcv",
+        lambda **kw: pd.DataFrame(),  # no data
+    )
+    with pytest.raises(RuntimeError):
+        isum.build_indicators_summary(symbol="BTC.D", timeframes="1h", indicators="pulse")
+
+
 # ─── HTTP endpoint (thin wrapper) ───────────────────────────────────
 
 def test_endpoint_returns_summary(monkeypatch):
