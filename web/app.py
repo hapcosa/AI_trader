@@ -2519,6 +2519,19 @@ def indicators_summary(
     return JSONResponse(result)
 
 
+@app.get("/api/indicators/macro")
+def indicators_macro() -> JSONResponse:
+    """Macro snapshot for the /indicators Macro tab: Fear & Greed, macro
+    tickers (DXY/S&P500/Nasdaq/Gold/VIX/US10Y/ETH-BTC) and current dominances.
+    Each feed degrades to None on failure."""
+    from pineforge_ai.indicators_macro import build_macro_summary
+
+    try:
+        return JSONResponse(build_macro_summary())
+    except Exception as e:  # pragma: no cover - defensive
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @app.get("/api/indicators/series")
 def indicators_series(
     symbol: str,
