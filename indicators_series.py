@@ -18,7 +18,12 @@ from pineforge_ai.indicators.budai_athenea import budai_athenea
 from pineforge_ai.indicators.budai_moneyflow_tide import budai_moneyflow_tide
 from pineforge_ai.indicators.budai_pulse import budai_pulse
 from pineforge_ai.indicators.wavetrend import wavetrend
-from pineforge_ai.indicators_summary import DOMINANCE_SYMBOLS, _dominance_dfs
+from pineforge_ai.indicators_summary import (
+    DEFAULT_EXCHANGE,
+    DOMINANCE_SYMBOLS,
+    _ccxt_symbol,
+    _dominance_dfs,
+)
 
 # indicator -> compute fn + which columns are the oscillator/trigger, the OB/OS
 # guide levels, and the scale ("0-100" or "centered" around 0). OB/OS match each
@@ -50,7 +55,7 @@ def build_indicator_series(
     timeframe: str,
     indicator: str,
     source: str = "auto",
-    exchange: str = "binance",
+    exchange: str = DEFAULT_EXCHANGE,
     candles: int = DEFAULT_CANDLES,
 ) -> dict[str, Any]:
     """Compute one indicator's oscillator series for one (symbol, timeframe).
@@ -80,8 +85,9 @@ def build_indicator_series(
         from pineforge_ai.data.fetcher import detect_source, fetch_multi_timeframe
 
         src = source if source != "auto" else detect_source(symbol)
+        fetch_symbol = _ccxt_symbol(symbol, exchange) if src == "ccxt" else symbol
         dfs = fetch_multi_timeframe(
-            symbol=symbol, timeframes=[timeframe], candles=candles,
+            symbol=fetch_symbol, timeframes=[timeframe], candles=candles,
             source=src, exchange=exchange,
         )
     df = dfs.get(timeframe) if dfs else None

@@ -2485,7 +2485,7 @@ def indicators_summary(
     tf: str | None = None,
     inds: str | None = None,
     source: str = "auto",
-    exchange: str = DEFAULT_EXCHANGE,
+    exchange: str = "bitget",
     candles: int = 300,
 ) -> JSONResponse:
     """Indicator summaries as JSON for the configurable notifier digest.
@@ -2538,7 +2538,7 @@ def indicators_series(
     ind: str,
     tf: str = "1h",
     source: str = "auto",
-    exchange: str = DEFAULT_EXCHANGE,
+    exchange: str = "bitget",
     candles: int = 300,
 ) -> JSONResponse:
     """Oscillator series (osc/trig over time) for the user-facing live chart.

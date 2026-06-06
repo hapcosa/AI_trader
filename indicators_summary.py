@@ -25,6 +25,23 @@ from pineforge_ai.runner import (
 # against the dominance SQLite via the reader instead of ccxt/yfinance.
 DOMINANCE_SYMBOLS = {"USDT.D", "BTC.D", "OTHERS.D"}
 
+# The platform trades Bitget USDT-M perpetuals, so indicator OHLCV defaults to
+# Bitget (not binance, which is geo-blocked in some regions — including
+# possibly prod's egress). Crypto pairs are charted on the perp market.
+DEFAULT_EXCHANGE = "bitget"
+
+
+def _ccxt_symbol(symbol: str, exchange: str) -> str:
+    """For Bitget, fetch the USDT-M perp instead of spot: turn a plain spot
+    pair (BASE/QUOTE) into the ccxt swap symbol (BASE/QUOTE:QUOTE). Leaves
+    already-suffixed symbols, dominance (no '/') and non-Bitget exchanges
+    untouched, so the UI keeps showing the clean 'BTC/USDT'."""
+    s = (symbol or "").strip()
+    if exchange.lower() == "bitget" and "/" in s and ":" not in s:
+        quote = s.split("/", 1)[1]
+        return f"{s}:{quote}"
+    return s
+
 # Approximate minutes per timeframe, to size the dominance history fetch.
 _TF_MINUTES = {"1m": 1, "5m": 5, "15m": 15, "1h": 60, "4h": 240, "1d": 1440, "1w": 10080}
 
@@ -95,7 +112,7 @@ def build_indicators_summary(
     timeframes: Any = None,
     indicators: Any = None,
     source: str = "auto",
-    exchange: str = "binance",
+    exchange: str = DEFAULT_EXCHANGE,
     candles: int = DEFAULT_CANDLES,
 ) -> dict[str, Any]:
     """Compute requested indicator summaries for ``symbol`` across ``timeframes``.
@@ -126,8 +143,9 @@ def build_indicators_summary(
         from pineforge_ai.data.fetcher import detect_source, fetch_multi_timeframe
 
         actual_source = source if source != "auto" else detect_source(symbol)
+        fetch_symbol = _ccxt_symbol(symbol, exchange) if actual_source == "ccxt" else symbol
         dfs = fetch_multi_timeframe(
-            symbol=symbol,
+            symbol=fetch_symbol,
             timeframes=tf_list,
             candles=candles,
             source=actual_source,
