@@ -136,6 +136,42 @@ def test_build_dominance_empty_raises(monkeypatch):
         isum.build_indicators_summary(symbol="BTC.D", timeframes="1h", indicators="pulse")
 
 
+# ─── Bitget-perp default (the platform trades Bitget USDT-M perps) ──
+
+def test_ccxt_symbol_bitget_perp():
+    assert isum._ccxt_symbol("BTC/USDT", "bitget") == "BTC/USDT:USDT"
+    assert isum._ccxt_symbol("ETH/USDT", "bitget") == "ETH/USDT:USDT"
+    # idempotent / already swap
+    assert isum._ccxt_symbol("BTC/USDT:USDT", "bitget") == "BTC/USDT:USDT"
+    # other exchanges untouched
+    assert isum._ccxt_symbol("BTC/USDT", "binance") == "BTC/USDT"
+    # dominance (no '/') untouched
+    assert isum._ccxt_symbol("USDT.D", "bitget") == "USDT.D"
+
+
+def test_default_exchange_is_bitget():
+    assert isum.DEFAULT_EXCHANGE == "bitget"
+
+
+def test_build_default_fetches_bitget_perp(monkeypatch):
+    captured = {}
+
+    def _fetch(**kw):
+        captured["symbol"] = kw["symbol"]
+        captured["exchange"] = kw["exchange"]
+        return {kw["timeframes"][0]: pd.DataFrame({"close": [1.0]})}
+
+    monkeypatch.setattr("pineforge_ai.data.fetcher.detect_source", lambda s: "ccxt")
+    monkeypatch.setattr("pineforge_ai.data.fetcher.fetch_multi_timeframe", _fetch)
+    monkeypatch.setattr(isum, "_build_indicator_summaries", lambda dfs, ind_list, emit: {"pulse": {"1h": {}}})
+
+    # No exchange passed → defaults to bitget; crypto pair charted on the perp.
+    res = isum.build_indicators_summary(symbol="BTC/USDT", timeframes="1h", indicators="pulse")
+    assert captured["exchange"] == "bitget"
+    assert captured["symbol"] == "BTC/USDT:USDT"
+    assert res["symbol"] == "BTC/USDT"  # response keeps the clean symbol
+
+
 # ─── HTTP endpoint (thin wrapper) ───────────────────────────────────
 
 def test_endpoint_returns_summary(monkeypatch):
