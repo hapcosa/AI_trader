@@ -22,6 +22,7 @@ from pineforge_ai.indicators_summary import (
     DEFAULT_EXCHANGE,
     DOMINANCE_SYMBOLS,
     _ccxt_symbol,
+    _crypto_store_dfs,
     _dominance_dfs,
 )
 
@@ -85,11 +86,15 @@ def build_indicator_series(
         from pineforge_ai.data.fetcher import detect_source, fetch_multi_timeframe
 
         src = source if source != "auto" else detect_source(symbol)
-        fetch_symbol = _ccxt_symbol(symbol, exchange) if src == "ccxt" else symbol
-        dfs = fetch_multi_timeframe(
-            symbol=fetch_symbol, timeframes=[timeframe], candles=candles,
-            source=src, exchange=exchange,
-        )
+        # Hybrid: read intraday TFs from the local candle store (instant); fall
+        # back to ccxt live for deep TFs (1d/1w) or symbols not in the store.
+        dfs = _crypto_store_dfs(symbol, [timeframe], candles) if src == "ccxt" else {}
+        if timeframe not in dfs:
+            fetch_symbol = _ccxt_symbol(symbol, exchange) if src == "ccxt" else symbol
+            dfs = fetch_multi_timeframe(
+                symbol=fetch_symbol, timeframes=[timeframe], candles=candles,
+                source=src, exchange=exchange,
+            )
     df = dfs.get(timeframe) if dfs else None
     if df is None or df.empty:
         raise RuntimeError("empty dfs — no OHLCV returned")
