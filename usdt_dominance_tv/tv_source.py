@@ -41,9 +41,21 @@ class TVSource:
     def _client_or_init(self) -> TvDatafeed:
         if self._client is None:
             if self._username and self._password:
-                self._client = TvDatafeed(
-                    username=self._username, password=self._password
-                )
+                # TradingView blocks programmatic user/password login (captcha
+                # / 403), so an authenticated init can raise. Fall back to
+                # ANONYMOUS TV — which still serves the real CRYPTOCAP series
+                # (USDT.D/BTC.D/OTHERS.D) — before the daemon resorts to the
+                # CoinGecko fallback (different methodology, and no OTHERS.D).
+                try:
+                    self._client = TvDatafeed(
+                        username=self._username, password=self._password
+                    )
+                except Exception as e:
+                    log.warning(
+                        "TV authenticated login failed (%s) — falling back to "
+                        "anonymous access", e,
+                    )
+                    self._client = TvDatafeed()
             else:
                 self._client = TvDatafeed()
         return self._client
