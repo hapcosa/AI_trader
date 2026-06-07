@@ -106,6 +106,34 @@ def _dominance_dfs(symbol: str, tf_list: list[str], candles: int) -> dict:
     return dfs
 
 
+def _crypto_store_dfs(symbol: str, tf_list: list[str], candles: int) -> dict:
+    """Build per-TF OHLCV for a crypto pair from the local candle store.
+
+    Reads the 1m ``bars_1m`` written by the ``crypto-ohlcv`` daemon and resamples
+    to each requested timeframe. Only serves intraday timeframes the 1m store can
+    cover (``STORE_TIMEFRAMES``); deeper TFs (1d/1w) and untracked symbols return
+    nothing, so the caller falls back to ccxt live. DB path comes from
+    CRYPTO_OHLCV_DB when set, else the reader default.
+    """
+    from pineforge_ai.crypto_ohlcv import reader
+
+    db = os.environ.get("CRYPTO_OHLCV_DB")
+    db_path = Path(db) if db else reader.DB_PATH
+
+    store_tfs = [tf for tf in tf_list if tf in reader.STORE_TIMEFRAMES]
+    if not store_tfs or not reader.has_symbol(symbol, db_path=db_path):
+        return {}
+
+    dfs: dict = {}
+    for tf in store_tfs:
+        minutes = _TF_MINUTES.get(tf, 60)
+        days = max(1, math.ceil((candles + 200) * minutes / 1440) + 1)
+        df = reader.get_ohlcv(timeframe=tf, days=days, db_path=db_path, symbol=symbol)
+        if df is not None and not df.empty:
+            dfs[tf] = df
+    return dfs
+
+
 def build_indicators_summary(
     *,
     symbol: str,
@@ -143,14 +171,22 @@ def build_indicators_summary(
         from pineforge_ai.data.fetcher import detect_source, fetch_multi_timeframe
 
         actual_source = source if source != "auto" else detect_source(symbol)
-        fetch_symbol = _ccxt_symbol(symbol, exchange) if actual_source == "ccxt" else symbol
-        dfs = fetch_multi_timeframe(
-            symbol=fetch_symbol,
-            timeframes=tf_list,
-            candles=candles,
-            source=actual_source,
-            exchange=exchange,
-        )
+        # Hybrid: serve intraday TFs from the local candle store (instant), live
+        # fetch only the TFs the store can't cover (1d/1w, or untracked symbol).
+        dfs = _crypto_store_dfs(symbol, tf_list, candles) if actual_source == "ccxt" else {}
+        live_tfs = [tf for tf in tf_list if tf not in dfs]
+        if live_tfs:
+            fetch_symbol = _ccxt_symbol(symbol, exchange) if actual_source == "ccxt" else symbol
+            dfs = {
+                **dfs,
+                **fetch_multi_timeframe(
+                    symbol=fetch_symbol,
+                    timeframes=live_tfs,
+                    candles=candles,
+                    source=actual_source,
+                    exchange=exchange,
+                ),
+            }
     if not dfs:
         raise RuntimeError("empty dfs — no OHLCV returned")
 
