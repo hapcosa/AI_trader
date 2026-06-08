@@ -22,9 +22,9 @@ from pineforge_ai.indicators.wavetrend import wavetrend
 from pineforge_ai.indicators_summary import (
     DEFAULT_EXCHANGE,
     DOMINANCE_SYMBOLS,
-    _ccxt_symbol,
     _crypto_store_dfs,
     _dominance_dfs,
+    _market_symbol,
 )
 
 # indicator -> compute fn + which columns are the oscillator/trigger, the OB/OS
@@ -96,7 +96,7 @@ def build_indicator_series(
         # back to ccxt live for deep TFs (1d/1w) or symbols not in the store.
         dfs = _crypto_store_dfs(symbol, [timeframe], candles) if src == "ccxt" else {}
         if timeframe not in dfs:
-            fetch_symbol = _ccxt_symbol(symbol, exchange) if src == "ccxt" else symbol
+            fetch_symbol = _market_symbol(symbol, timeframe, exchange) if src == "ccxt" else symbol
             dfs = fetch_multi_timeframe(
                 symbol=fetch_symbol, timeframes=[timeframe], candles=candles,
                 source=src, exchange=exchange,

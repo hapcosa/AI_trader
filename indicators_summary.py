@@ -42,6 +42,23 @@ def _ccxt_symbol(symbol: str, exchange: str) -> str:
         return f"{s}:{quote}"
     return s
 
+
+# Deep timeframes where the Bitget perp is too young (~90 daily candles) for an
+# oscillator's warmup. For these we fetch the spot market instead (300+ candles).
+DEEP_TFS: frozenset[str] = frozenset({"1d", "1w"})
+
+
+def _market_symbol(symbol: str, timeframe: str, exchange: str) -> str:
+    """ccxt symbol to fetch for a (symbol, timeframe) on ``exchange``.
+
+    Bitget intraday → the USDT-M perp (live, matches the store). Bitget deep TFs
+    (1d/1w) → the spot symbol, which carries far more history than the young perp
+    so WaveTrend & friends have enough warmup. Non-Bitget is untouched.
+    """
+    if exchange.lower() == "bitget" and timeframe in DEEP_TFS:
+        return (symbol or "").strip()  # clean pair = spot market
+    return _ccxt_symbol(symbol, exchange)
+
 # Approximate minutes per timeframe, to size the dominance history fetch.
 _TF_MINUTES = {"1m": 1, "5m": 5, "15m": 15, "1h": 60, "4h": 240, "1d": 1440, "1w": 10080}
 
