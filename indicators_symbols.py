@@ -27,12 +27,21 @@ CATALOG: tuple[str, ...] = (
 )
 
 
-def build_symbols() -> dict[str, Any]:
-    """Return ``{downloaded, catalog}``.
+# Commodities / metals on Bitget perp (USDT-M). Spot doesn't list these, so the
+# oscillators read the perp; deep-TF (1d/1w) history is shallow like other perps.
+COMMODITIES: tuple[str, ...] = (
+    "XAU/USDT", "XAG/USDT", "XPT/USDT", "XPD/USDT",
+    "COPPER/USDT", "CL/USDT", "BZ/USDT", "NATGAS/USDT",
+)
 
-    ``downloaded`` = symbols the store has bars for (instant on the page).
-    ``catalog`` = the curated list unioned with downloaded, sorted — the UI
-    derives "altcoins" as catalog minus downloaded.
+
+def build_symbols() -> dict[str, Any]:
+    """Return ``{downloaded, catalog, commodities}``.
+
+    ``downloaded`` = symbols the store has bars for (instant on the page; shown
+    as the "main" section). ``catalog`` = curated crypto unioned with downloaded
+    (the UI derives "altcoins" as catalog minus downloaded). ``commodities`` =
+    metals/energy perps for their own section.
     """
     from pineforge_ai.crypto_ohlcv import reader
 
@@ -41,7 +50,11 @@ def build_symbols() -> dict[str, Any]:
     downloaded = reader.store_symbols(db_path=db_path)
 
     catalog = sorted(set(CATALOG) | set(downloaded))
-    return {"downloaded": downloaded, "catalog": catalog}
+    return {
+        "downloaded": downloaded,
+        "catalog": catalog,
+        "commodities": list(COMMODITIES),
+    }
 
 
-__all__ = ["build_symbols", "CATALOG"]
+__all__ = ["build_symbols", "CATALOG", "COMMODITIES"]
