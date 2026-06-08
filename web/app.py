@@ -2562,6 +2562,17 @@ def indicators_ranges(symbol: str, tfs: str = "15m,1h,4h,1d", exchange: str = "b
     return JSONResponse(result)
 
 
+@app.get("/api/indicators/symbols")
+def indicators_symbols() -> JSONResponse:
+    """Pair catalog for the /indicators picker: downloaded (store) + catalog."""
+    from pineforge_ai.indicators_symbols import build_symbols
+
+    try:
+        return JSONResponse(build_symbols())
+    except Exception as e:  # pragma: no cover - defensive
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @app.get("/api/indicators/macro")
 def indicators_macro() -> JSONResponse:
     """Macro snapshot for the /indicators Macro tab: Fear & Greed, macro
