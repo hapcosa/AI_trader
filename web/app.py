@@ -2519,6 +2519,27 @@ def indicators_summary(
     return JSONResponse(result)
 
 
+@app.get("/api/indicators/ticker")
+def indicators_ticker(symbol: str, exchange: str = "bitget") -> JSONResponse:
+    """Current price for the /indicators header (fast poll). Last-price lookup
+    via ccxt fetch_ticker with a cached exchange handle.
+
+    Query params: symbol (required), exchange (default bitget).
+    """
+    from pineforge_ai.indicators_ticker import build_ticker
+
+    try:
+        result = build_ticker(symbol=symbol, exchange=exchange.strip() or DEFAULT_EXCHANGE)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    except Exception as e:  # pragma: no cover - defensive
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    return JSONResponse(result)
+
+
 @app.get("/api/indicators/macro")
 def indicators_macro() -> JSONResponse:
     """Macro snapshot for the /indicators Macro tab: Fear & Greed, macro
