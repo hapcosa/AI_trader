@@ -17,6 +17,7 @@ from pineforge_ai.indicators.budai_abyss import budai_abyss
 from pineforge_ai.indicators.budai_athenea import budai_athenea
 from pineforge_ai.indicators.budai_moneyflow_tide import budai_moneyflow_tide
 from pineforge_ai.indicators.budai_pulse import budai_pulse
+from pineforge_ai.indicators.classics import macd, rsi, stochastic
 from pineforge_ai.indicators.wavetrend import wavetrend
 from pineforge_ai.indicators_summary import (
     DEFAULT_EXCHANGE,
@@ -28,13 +29,18 @@ from pineforge_ai.indicators_summary import (
 
 # indicator -> compute fn + which columns are the oscillator/trigger, the OB/OS
 # guide levels, and the scale ("0-100" or "centered" around 0). OB/OS match each
-# indicator's own thresholds.
+# indicator's own thresholds. "hist" (optional) names a histogram column emitted
+# alongside osc/trig (MACD). ob/os may be None when the indicator has no bounded
+# extremes (MACD), in which case the UI skips OB/OS lines + the reading chip.
 _SERIES: dict[str, dict[str, Any]] = {
-    "pulse":     {"fn": budai_pulse,            "osc": "osc",      "trig": "trig",      "ob": 80.0,  "os": 20.0,   "scale": "0-100"},
-    "abyss":     {"fn": budai_abyss,            "osc": "wt1",      "trig": "wt2",       "ob": 53.0,  "os": -53.0,  "scale": "centered"},
-    "tide":      {"fn": budai_moneyflow_tide,   "osc": "fast",     "trig": "slow",      "ob": 60.0,  "os": -60.0,  "scale": "centered"},
-    "athenea":   {"fn": budai_athenea,          "osc": "osc",      "trig": "trig",      "ob": 80.0,  "os": 20.0,   "scale": "0-100"},
-    "wavetrend": {"fn": wavetrend,              "osc": "osc_norm", "trig": "trig_norm", "ob": 75.0,  "os": 25.0,   "scale": "0-100"},
+    "pulse":     {"fn": budai_pulse,            "osc": "osc",      "trig": "trig",       "ob": 80.0,  "os": 20.0,   "scale": "0-100"},
+    "abyss":     {"fn": budai_abyss,            "osc": "wt1",      "trig": "wt2",        "ob": 53.0,  "os": -53.0,  "scale": "centered"},
+    "tide":      {"fn": budai_moneyflow_tide,   "osc": "fast",     "trig": "slow",       "ob": 60.0,  "os": -60.0,  "scale": "centered"},
+    "athenea":   {"fn": budai_athenea,          "osc": "osc",      "trig": "trig",       "ob": 80.0,  "os": 20.0,   "scale": "0-100"},
+    "wavetrend": {"fn": wavetrend,              "osc": "osc_norm", "trig": "trig_norm",  "ob": 75.0,  "os": 25.0,   "scale": "0-100"},
+    "rsi":       {"fn": rsi,                    "osc": "rsi",      "trig": "rsi_signal", "ob": 70.0,  "os": 30.0,   "scale": "0-100"},
+    "stochastic": {"fn": stochastic,           "osc": "k",        "trig": "d",          "ob": 80.0,  "os": 20.0,   "scale": "0-100"},
+    "macd":      {"fn": macd,                   "osc": "macd",     "trig": "signal",     "ob": None,  "os": None,   "scale": "centered", "hist": "hist"},
 }
 
 SERIES_INDICATORS = tuple(_SERIES)
@@ -101,14 +107,23 @@ def build_indicator_series(
 
     res = spec["fn"](df)
     osc_col, trig_col = spec["osc"], spec["trig"]
+    hist_col = spec.get("hist")
 
     points: list[dict[str, Any]] = []
-    for idx, o, t in zip(res.index, res[osc_col], res[trig_col]):
+    for idx, o, t, h in zip(
+        res.index,
+        res[osc_col],
+        res[trig_col],
+        res[hist_col] if hist_col else [None] * len(res),
+    ):
         osc_v, trig_v = _num(o), _num(t)
         if osc_v is None and trig_v is None:
             continue
         ts = idx.to_pydatetime() if hasattr(idx, "to_pydatetime") else idx
-        points.append({"time": int(ts.timestamp()), "osc": osc_v, "trig": trig_v})
+        point: dict[str, Any] = {"time": int(ts.timestamp()), "osc": osc_v, "trig": trig_v}
+        if hist_col:
+            point["hist"] = _num(h)
+        points.append(point)
 
     points = points[-candles:]
     return {
