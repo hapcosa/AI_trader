@@ -2540,6 +2540,28 @@ def indicators_ticker(symbol: str, exchange: str = "bitget") -> JSONResponse:
     return JSONResponse(result)
 
 
+@app.get("/api/indicators/ranges")
+def indicators_ranges(symbol: str, tfs: str = "15m,1h,4h,1d", exchange: str = "bitget") -> JSONResponse:
+    """Per-timeframe current-candle high-low range for the /indicators header.
+
+    Query params: symbol (required), tfs (CSV, default 15m,1h,4h,1d), exchange.
+    """
+    from pineforge_ai.indicators_ranges import build_ranges
+
+    try:
+        tf_list = [t for t in tfs.split(",") if t.strip()]
+        result = build_ranges(
+            symbol=symbol, timeframes=tf_list,
+            exchange=exchange.strip() or DEFAULT_EXCHANGE,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:  # pragma: no cover - defensive
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    return JSONResponse(result)
+
+
 @app.get("/api/indicators/macro")
 def indicators_macro() -> JSONResponse:
     """Macro snapshot for the /indicators Macro tab: Fear & Greed, macro
