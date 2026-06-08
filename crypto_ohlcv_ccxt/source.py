@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
@@ -63,10 +62,8 @@ class CcxtSource:
         """
         market = self._resolve(symbol)
         n_bars = max(1, int(n_bars))
-        since = int(
-            (datetime.now(tz=timezone.utc) - timedelta(minutes=n_bars + 2)).timestamp()
-            * 1000
-        )
+        now_ms = self.exchange.milliseconds()
+        since = now_ms - (n_bars + 2) * 60_000
 
         rows: list[list] = []
         cursor = since
@@ -77,10 +74,17 @@ class CcxtSource:
             if not batch:
                 break
             rows.extend(batch)
-            if len(batch) < MAX_BARS_PER_CALL:
+            last_ts = batch[-1][0]
+            next_cursor = last_ts + 60_000
+            # NB: Bitget serves short pages (~200 bars) for far-past 1m history
+            # even when more data follows, so we must NOT stop on a short page —
+            # advance by the last timestamp and stop only when caught up to now,
+            # stalled (no forward progress), or the safety cap is hit.
+            if next_cursor <= cursor:
                 break
-            cursor = batch[-1][0] + 1
-            # Stop once we have enough; the loop is for deep backfills only.
+            cursor = next_cursor
+            if last_ts >= now_ms - 60_000:
+                break
             if len(rows) >= n_bars + MAX_BARS_PER_CALL:
                 break
             time.sleep(self.exchange.rateLimit / 1000.0)

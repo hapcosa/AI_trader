@@ -26,9 +26,11 @@ RESAMPLE_RULES: dict[str, str] = {
     "1w":  "1W",
 }
 
-# Timeframes the 1m store can serve with enough depth (≤4h). Deeper TFs (1d/1w)
-# need history the 1m store doesn't keep, so callers fall back to ccxt live.
-STORE_TIMEFRAMES: frozenset[str] = frozenset({"1m", "5m", "15m", "1h", "4h"})
+# Timeframes the 1m store serves from local SQLite. Capped at 1h: Bitget serves
+# only ~200-bar pages for far-past 1m history, so backfilling enough 1m to fill
+# 300×4h candles (~83 days) per symbol is impractical. 4h+ fall back to ccxt
+# live (few bars, one fast page), keeping the store shallow and quick to backfill.
+STORE_TIMEFRAMES: frozenset[str] = frozenset({"1m", "5m", "15m", "1h"})
 
 
 def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
