@@ -2570,6 +2570,45 @@ def indicators_series(
     return JSONResponse(result)
 
 
+@app.get("/api/indicators/price")
+def indicators_price(
+    symbol: str,
+    tf: str = "1h",
+    emas: str = "20,50,200",
+    source: str = "auto",
+    exchange: str = "bitget",
+    candles: int = 300,
+) -> JSONResponse:
+    """Price (OHLC) + EMA overlay lines for the user-facing EMA panel (E3b).
+
+    Query params:
+      symbol   — e.g. BTC/USDT, BTCUSDT (required)
+      tf       — timeframe (default 1h)
+      emas     — CSV of EMA lengths (default 20,50,200)
+      source   — auto | ccxt | yfinance
+      exchange — ccxt exchange (default bitget)
+      candles  — bars to return (default 300)
+    """
+    from pineforge_ai.indicators_price import build_price_overlay
+
+    try:
+        ema_lengths = [int(x) for x in emas.split(",") if x.strip()]
+        result = build_price_overlay(
+            symbol=symbol, timeframe=tf, emas=ema_lengths,
+            source=source.strip() or "auto",
+            exchange=exchange.strip() or DEFAULT_EXCHANGE,
+            candles=candles,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    except Exception as e:  # pragma: no cover - defensive
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    return JSONResponse(result)
+
+
 @app.post("/api/generate")
 async def generate(request: Request) -> FileResponse:
     try:
