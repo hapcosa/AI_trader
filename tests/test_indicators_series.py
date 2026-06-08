@@ -25,6 +25,9 @@ def _ohlcv(n: int = 250) -> pd.DataFrame:
 
 def _patch_fetch(monkeypatch, df):
     monkeypatch.setattr("pineforge_ai.data.fetcher.detect_source", lambda s: "ccxt")
+    # Isolate from any real local candle store (a running daemon may have
+    # written AI_trader/data/crypto_ohlcv.db) so these exercise the live path.
+    monkeypatch.setattr(iser, "_crypto_store_dfs", lambda *a, **k: {})
     monkeypatch.setattr(
         "pineforge_ai.data.fetcher.fetch_multi_timeframe",
         lambda **kw: {kw["timeframes"][0]: df},
@@ -64,6 +67,7 @@ def test_series_requires_symbol():
 
 def test_series_empty_raises(monkeypatch):
     monkeypatch.setattr("pineforge_ai.data.fetcher.detect_source", lambda s: "ccxt")
+    monkeypatch.setattr(iser, "_crypto_store_dfs", lambda *a, **k: {})
     monkeypatch.setattr("pineforge_ai.data.fetcher.fetch_multi_timeframe", lambda **kw: {})
     with pytest.raises(RuntimeError):
         iser.build_indicator_series(symbol="BTC/USDT", timeframe="1h", indicator="pulse")

@@ -67,7 +67,9 @@ def test_get_ohlcv_missing_db_is_empty(tmp_path):
 
 
 def test_store_timeframes_excludes_deep(tmp_path):
-    assert "4h" in creader.STORE_TIMEFRAMES
+    assert "1h" in creader.STORE_TIMEFRAMES
+    # 4h+ fall back to ccxt live (deep 1m backfill on Bitget is impractical).
+    assert "4h" not in creader.STORE_TIMEFRAMES
     assert "1d" not in creader.STORE_TIMEFRAMES
     assert "1w" not in creader.STORE_TIMEFRAMES
 

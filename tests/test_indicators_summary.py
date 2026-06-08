@@ -162,6 +162,7 @@ def test_build_default_fetches_bitget_perp(monkeypatch):
         return {kw["timeframes"][0]: pd.DataFrame({"close": [1.0]})}
 
     monkeypatch.setattr("pineforge_ai.data.fetcher.detect_source", lambda s: "ccxt")
+    monkeypatch.setattr(isum, "_crypto_store_dfs", lambda *a, **k: {})
     monkeypatch.setattr("pineforge_ai.data.fetcher.fetch_multi_timeframe", _fetch)
     monkeypatch.setattr(isum, "_build_indicator_summaries", lambda dfs, ind_list, emit: {"pulse": {"1h": {}}})
 
