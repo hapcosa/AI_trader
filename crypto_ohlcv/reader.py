@@ -71,6 +71,25 @@ def _load_bars(db_path: Path, days: int, symbol: str) -> pd.DataFrame:
     return df.drop(columns=["ts"])
 
 
+def store_symbols(db_path: Path = DB_PATH) -> list[str]:
+    """Return the symbols the store currently holds bars for (sorted)."""
+    if not db_path.exists():
+        return []
+    try:
+        conn = sqlite3.connect(str(db_path), check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        if not _table_exists(conn, "bars_1m"):
+            conn.close()
+            return []
+        rows = conn.execute(
+            "SELECT DISTINCT symbol FROM bars_1m ORDER BY symbol"
+        ).fetchall()
+        conn.close()
+        return [r[0] for r in rows]
+    except Exception:
+        return []
+
+
 def has_symbol(symbol: str, db_path: Path = DB_PATH) -> bool:
     """True if the store currently holds any bars for ``symbol``."""
     if not db_path.exists():
