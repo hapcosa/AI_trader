@@ -37,3 +37,7 @@ def test_build_symbols_sections(tmp_path, monkeypatch):
     assert "ETH/USDT" in out["catalog"]          # from CATALOG
     assert "Z-CUSTOM/USDT" in out["catalog"]      # downloaded but not in CATALOG
     assert out["catalog"] == sorted(set(out["catalog"]))
+    # commodities are their own section (perp metals/energy), not in catalog.
+    assert "XAU/USDT" in out["commodities"]
+    assert "NATGAS/USDT" in out["commodities"]
+    assert "XAU/USDT" not in out["catalog"]
