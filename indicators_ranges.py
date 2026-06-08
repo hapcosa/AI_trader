@@ -13,9 +13,9 @@ from typing import Any
 from pineforge_ai.indicators_summary import (
     DEFAULT_EXCHANGE,
     DOMINANCE_SYMBOLS,
-    _ccxt_symbol,
     _crypto_store_dfs,
     _dominance_dfs,
+    _market_symbol,
 )
 
 DEFAULT_TIMEFRAMES = ("15m", "1h", "4h", "1d")
@@ -39,7 +39,7 @@ def _routed_df(symbol: str, tf: str, source: str, exchange: str):
         src = source if source != "auto" else detect_source(symbol)
         dfs = _crypto_store_dfs(symbol, [tf], _FETCH_CANDLES) if src == "ccxt" else {}
         if tf not in dfs:
-            fetch_symbol = _ccxt_symbol(symbol, exchange) if src == "ccxt" else symbol
+            fetch_symbol = _market_symbol(symbol, tf, exchange) if src == "ccxt" else symbol
             dfs = fetch_multi_timeframe(
                 symbol=fetch_symbol, timeframes=[tf], candles=_FETCH_CANDLES,
                 source=src, exchange=exchange,

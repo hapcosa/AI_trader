@@ -221,3 +221,14 @@ def test_endpoint_400_on_bad_indicator(monkeypatch):
     with TestClient(app) as client:
         r = client.get("/api/indicators/summary", params={"symbol": "BTC/USDT", "inds": "bogus"})
     assert r.status_code == 400
+
+
+def test_market_symbol_perp_intraday_spot_deep():
+    from indicators_summary import _market_symbol
+    # Bitget intraday → perp; deep TFs (1d/1w) → spot (clean pair, more history)
+    assert _market_symbol("BTC/USDT", "1h", "bitget") == "BTC/USDT:USDT"
+    assert _market_symbol("BTC/USDT", "4h", "bitget") == "BTC/USDT:USDT"
+    assert _market_symbol("BTC/USDT", "1d", "bitget") == "BTC/USDT"
+    assert _market_symbol("BTC/USDT", "1w", "bitget") == "BTC/USDT"
+    # non-bitget untouched
+    assert _market_symbol("BTC/USDT", "1d", "binance") == "BTC/USDT"

@@ -146,6 +146,23 @@ def _fetch_yfinance(
 
 # ─── ccxt Fetcher ─────────────────────────────────────────────────────────────
 
+# Process-wide ccxt handle cache so live fetches don't reload markets every call
+# (load_markets is the cold-start lag; the candle store covers intraday anyway,
+# this keeps the live 4h/1d fetches fast after the first).
+_EXCHANGE_CACHE: dict[str, object] = {}
+
+
+def _cached_exchange(exchange_id: str):
+    ex = _EXCHANGE_CACHE.get(exchange_id)
+    if ex is None:
+        import ccxt
+
+        ex = getattr(ccxt, exchange_id)({"enableRateLimit": True})
+        ex.load_markets()
+        _EXCHANGE_CACHE[exchange_id] = ex
+    return ex
+
+
 def _fetch_ccxt(
     symbol: str,
     timeframe: str,
@@ -154,7 +171,7 @@ def _fetch_ccxt(
     candles: int | None = None,
 ) -> pd.DataFrame:
     try:
-        import ccxt
+        import ccxt  # noqa: F401  (kept for the clear ImportError message)
     except ImportError as e:
         raise ImportError("ccxt not installed. Run: pip install ccxt") from e
 
@@ -170,11 +187,10 @@ def _fetch_ccxt(
     if ccxt_tf is None:
         raise ValueError(f"Unsupported timeframe for ccxt: {timeframe}")
 
-    exchange_class = getattr(ccxt, exchange_id)
-    exchange = exchange_class({"enableRateLimit": True})
+    exchange = _cached_exchange(exchange_id)
 
     # Algunos exchanges no soportan ciertos TF → fallback a resample desde TF menor
-    markets = exchange.load_markets()
+    markets = exchange.markets
     if symbol not in markets:
         # Intentar variaciones del símbolo
         alt = symbol.replace("/", "")
