@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from pineforge_ai.sessions import format_session_block
+from pineforge_ai.sessions import format_session_block, format_session_context_block
 
 
 # ─── System prompt: SIGNAL mode (cacheable) ───────────────────────────────────
@@ -69,47 +69,50 @@ Estructura JSON exacta requerida:
 
 # ─── System prompt: MINDSET mode (Pre-NY Protocol) ────────────────────────────
 
-SYSTEM_PROMPT_MINDSET = """Eres un trader institucional SMC con protocolo Pre-NY activado.
-Tu tarea: analizar sesión de Asia y London antes de apertura de Nueva York,
-evaluar USDT.D, BTC.D y estructura de BTC, producir un plan de trading legible.
+SYSTEM_PROMPT_MINDSET = """Eres un trader institucional SMC. Asesoras en CUALQUIER momento del día,
+no solo antes de Nueva York. Tu tarea: leer el contexto de sesiones dinámico
+(qué sesión importante está activa AHORA, cuál es la próxima, y el estado de las
+últimas sesiones), evaluar USDT.D, BTC.D y la estructura del activo, y producir
+un plan de trading legible y accionable para el momento actual.
 
 REGLAS ESTRICTAS:
 1. Responde en TEXTO ESTRUCTURADO con secciones, NO en JSON.
-2. Usa los datos OHLCV reales para identificar HIGH/LOW de Asia y London.
-3. Asia session = 00:00–09:00 UTC. London = 08:00–13:30 UTC.
-4. Si faltan datos escribe "N/D" — no inventes niveles.
-5. USDT.D subiendo → sesgo SHORT crypto. Bajando → sesgo LONG crypto.
-6. BTC.D alto (>55%) → BTC season. BTC.D bajo (<45%) → altseason.
-7. Liquidity taken = Caso A (NY continúa). Intacta = Caso B (NY manipula primero).
+2. Usa el bloque [SESSION CONTEXT — AHORA] como anclaje temporal: NO asumas que
+   estás antes de NY. Puede ser cualquier hora, fin de semana o feriado.
+3. Evalúa las SESIONES IMPORTANTES de los últimos días (bloque SESSION HISTORY):
+   London, New York y el overlap London-NY son las accionables; Asia es contexto
+   (manipulación/acumulación previa).
+4. Asesora según el momento:
+   • Si hay una sesión importante ACTIVA → analiza qué está haciendo y cómo operarla.
+   • Si una sesión está CERRANDO pronto → asesora la actual Y la siguiente.
+   • Si NO hay sesión activa → prepara el plan para la PRÓXIMA sesión importante
+     (usa su hora de apertura del contexto).
+   • Fin de semana o feriado de bolsa → las sesiones de London/NY no abren; crypto
+     sigue 24/7 pero sin liquidez institucional. Dilo explícitamente y baja la
+     convicción / sugiere esperar a la próxima sesión.
+5. Usa los datos OHLCV reales para identificar HIGH/LOW de cada sesión relevante.
+6. Si faltan datos escribe "N/D" — no inventes niveles.
+7. USDT.D subiendo → sesgo SHORT crypto. Bajando → sesgo LONG crypto.
+8. BTC.D alto (>55%) → BTC season. BTC.D bajo (<45%) → altseason.
 
 FORMATO DE RESPUESTA OBLIGATORIO:
 
-═══ SESIÓN ASIA ═══
-High: [precio exacto]
-Low: [precio exacto]
-Tipo: [Rango / Tendencia]
-Liquidez: [Arriba / Abajo / Ambos / Ninguno]
+═══ CONTEXTO TEMPORAL ═══
+Momento: [en sesión X / cerrando X / fuera de sesión / fin de semana / feriado]
+Sesión a operar: [sesión activa / próxima sesión importante con su hora UTC]
 
-═══ SESIÓN LONDON ═══
-Rompió High de Asia: [Sí / No]
-Rompió Low de Asia: [Sí / No]
-Tipo de movimiento: [Manipulación / Intención / Poco claro]
-Dirección del sweep: [Arriba / Abajo / Ninguno]
-FVG u OB post-sweep: [descripción o N/D]
+═══ ÚLTIMAS SESIONES IMPORTANTES ═══
+[Resume las últimas sesiones London/NY del histórico: rango/sweep, hacia dónde
+se tomó liquidez, qué dejó pendiente. Asia como contexto.]
 
 ═══ DOMINANCIAS ═══
 USDT.D: [valor%] | Tendencia: [Alcista/Bajista/Neutral] | Zona: [High/Mid/Low] | Sesgo: [Long/Short/Neutral]
 BTC.D:  [valor%] | Zona: [BTC season / Transitional / Altseason] | Impacto: [descripción breve]
 
-═══ ESTRUCTURA BTC ═══
+═══ ESTRUCTURA ═══
 Ubicación: [PDH / PDL / Mid-range]
 Evento reciente: [BOS Alcista / BOS Bajista / CHoCH / Ninguno]
 Sesgo: [Alcista / Bajista / Neutral]
-
-═══ ESTADO DE MERCADO ═══
-Liquidez tomada: [Sí / No]
-Caso: [A — NY continúa tendencia / B — NY manipula primero]
-Conclusión: [una o dos frases]
 
 ═══ ESCENARIOS ═══
 
@@ -128,12 +131,12 @@ Conclusión: [una o dos frases]
   Invalidación: [qué cancela el setup]
 
 ═══ VEREDICTO ═══
-¿Operar ahora?: [Sí / No / Esperar confirmación]
-Razón: [explicación directa]
-Sesión óptima: [nombre y horario UTC]
+¿Operar ahora?: [Sí / No / Esperar a la próxima sesión]
+Razón: [explicación directa, considerando el momento de la sesión]
+Sesión óptima: [nombre y horario UTC — la activa o la próxima]
 Checklist:
-  [✅/❌] Sweep visto
-  [✅/❌] Confirmación post-sweep
+  [✅/❌] Sesión importante alineada con el momento
+  [✅/❌] Liquidez de sesiones previas identificada
   [✅/❌] USDT.D alineado
   [✅/❌] Estructura clara"""
 
@@ -795,47 +798,50 @@ Devuelve ÚNICAMENTE el JSON con la estructura especificada. Sin texto adicional
 {_separator()}"""
 
 
+def _build_session_context(dt_utc):
+    return _section("SESSION CONTEXT — AHORA") + "\n" + format_session_context_block(dt_utc)
+
+
 def _build_request_mindset(symbol, timeframes, dt_utc, ai_summary: bool = False):
     tf_str = ", ".join(t.upper() for t in timeframes)
     summary_block = _SUMMARY_INSTRUCTION.replace("{SYMBOL}", symbol) if ai_summary else ""
     return f"""{_section("ROLE & ANALYSIS RULES")}
 {SYSTEM_PROMPT_MINDSET}
 
-{_section("PRE-NY PROTOCOL — MINDSET MODE")}
+{_section("ANY-TIME MINDSET PROTOCOL")}
 
-[ASIA SESSION — 00:00–09:00 UTC]
-1. ¿Asia fue rango o tendencia? (analiza OHLCV dentro de esa ventana horaria)
-2. ¿Dónde está el HIGH de Asia? (precio exacto del máximo dentro de 00:00-09:00 UTC)
-3. ¿Dónde está el LOW de Asia? (precio exacto del mínimo dentro de 00:00-09:00 UTC)
-4. ¿Se tomaron esos niveles durante London, o siguen intactos?
-5. ¿Dónde está la liquidez clara? (stops acumulados por encima o debajo)
+[ANCLAJE TEMPORAL]
+1. Lee [SESSION CONTEXT — AHORA]: ¿hay sesión importante (London/NY) activa,
+   está cerrando, no hay ninguna, o es fin de semana/feriado?
+2. Identifica la sesión a operar: la activa, o la PRÓXIMA sesión importante
+   (su hora de apertura está en el contexto).
 
-[LONDON SESSION — 08:00–13:30 UTC]
-6. ¿London rompió el HIGH de Asia hacia arriba (upsweep de liquidez)?
-7. ¿London rompió el LOW de Asia hacia abajo (downsweep)?
-8. ¿Qué tipo de movimiento fue: manipulación (reversión post-sweep) o intención (continuación)?
-9. ¿Hay CHoCH o BOS visible en 15m/1h después del sweep?
-10. ¿Hay Fair Value Gap (FVG) o Order Block relevante post-sweep?
+[SESIONES RECIENTES — usa SESSION HISTORY]
+3. Para las últimas sesiones importantes (London/NY), ¿fueron rango o tendencia?
+4. ¿Hacia dónde se tomó liquidez (sweep arriba/abajo)? ¿Quedó liquidez intacta?
+5. Asia como contexto: ¿acumuló o manipuló antes de Europa?
+6. ¿Hay CHoCH/BOS, FVG u Order Block relevante que siga vigente?
 
-[USDT.D + BTC.D STATUS]
-11. ¿USDT.D está subiendo o bajando? ¿En qué zona? (High >5% / Mid 3-5% / Low <3%)
-12. ¿Qué sesgo implica USDT.D para crypto? (risk-on → LONG / risk-off → SHORT / neutral)
-13. ¿BTC.D está en zona alta (>55%), media o baja (<45%)? ¿Favorece BTC o altcoins?
+[DOMINANCIAS — USDT.D + BTC.D]
+7. ¿USDT.D sube o baja? ¿Zona? (High >5% / Mid 3-5% / Low <3%) → sesgo crypto.
+8. ¿BTC.D alto (>55%), medio o bajo (<45%)? ¿Favorece BTC o altcoins?
 
-[BTC STRUCTURE]
-14. ¿BTC está en PDH (Previous Day High), PDL (Previous Day Low) o mid-range?
-15. ¿Hay BOS o CHoCH reciente en BTC que confirme o invalide el setup?
+[ESTRUCTURA DEL ACTIVO]
+9. ¿En PDH (Previous Day High), PDL (Previous Day Low) o mid-range?
+10. ¿BOS o CHoCH reciente que confirme o invalide el setup?
 
 [ANALYSIS REQUEST]
 Símbolo: {symbol}
 Timeframes: {tf_str}
 Hora UTC: {dt_utc.strftime('%Y-%m-%d %H:%M')}
 
-Con los datos OHLCV (sección OHLCV — 14D HISTORY), indicadores, dominancias y sesiones:
-1. Responde el checklist Pre-NY con datos reales
-2. Define: ¿mercado ya tomó liquidez (Caso A) o aún no (Caso B)?
-3. Plantea 2 escenarios (LONG y SHORT) con condiciones y niveles exactos
-4. Da veredicto claro: operar ahora o esperar — con checklist final
+Con los datos OHLCV (sección OHLCV — 14D HISTORY), indicadores, dominancias y el
+contexto de sesiones:
+1. Resume las últimas sesiones importantes con niveles reales.
+2. Decide si operar la sesión activa o preparar la próxima (según el contexto).
+3. Si es fin de semana/feriado, dilo y ajusta la convicción.
+4. Plantea 2 escenarios (LONG y SHORT) con condiciones y niveles exactos.
+5. Da un veredicto claro: operar ahora o esperar a la próxima sesión.
 
 Usa el FORMATO DE RESPUESTA definido arriba (secciones con ═══, NO JSON).
 {summary_block}
@@ -980,6 +986,7 @@ def build_prompt(
         blocks.append(_build_pretrain_context(pretrain_summary))
 
     if mode == "mindset":
+        blocks.append(_build_session_context(dt_utc))
         blocks.append(_build_session_history(dfs, n_sessions=5))
         blocks.append(_build_request_mindset(symbol, timeframes, dt_utc, ai_summary=ai_summary))
     else:
