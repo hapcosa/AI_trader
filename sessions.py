@@ -3,9 +3,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 
 import pandas as pd
+
+# Stock-exchange holiday calendars drive the "important session" windows below.
+# Crypto trades 24/7, but London/NY liquidity follows the LSE/NYSE calendar, so
+# weekends and exchange holidays mean no real session. `holidays` is optional —
+# if it's missing we degrade to weekend-only detection rather than crashing.
+try:  # pragma: no cover - import guard
+    import holidays as _holidays
+
+    _HOLIDAY_CALS: dict[str, object] = {
+        "US": _holidays.financial_holidays("NYSE"),
+        "UK": _holidays.country_holidays("UK"),
+    }
+except Exception:  # pragma: no cover - lib absent / API drift
+    _HOLIDAY_CALS = {}
 
 
 @dataclass
@@ -241,4 +255,188 @@ def format_session_block(dt_utc: datetime | None = None) -> str:
         lines.append(f"Cerradas: {', '.join(closed_names)}")
     lines.append(f"Liquidez: {status['liquidity'].upper()}")
 
+    return "\n".join(lines)
+
+
+# ─── Any-time mindset: important sessions + next-session lookahead ────────────
+
+# Sessions that drive real liquidity for the mindset analysis. Asia is kept as
+# context (manipulation/accumulation before Europe), but the actionable windows
+# are London, New York and their overlap.
+IMPORTANT_SESSION_NAMES: tuple[str, ...] = ("London", "New York")
+CONTEXT_SESSION_NAMES: tuple[str, ...] = ("Tokyo", "Shanghai", "Sydney")
+
+# Which holiday calendar gates each important session.
+_SESSION_MARKET: dict[str, str] = {"London": "UK", "New York": "US"}
+
+_IMPORTANT_SESSIONS: list[Session] = [s for s in SESSIONS if s.name in IMPORTANT_SESSION_NAMES]
+
+
+def _market_open_on(d, market: str) -> bool:
+    """Is the given stock market trading on date `d`? False on weekends and on
+    that market's holidays (NYSE for US, LSE/UK bank holidays for UK)."""
+    if d.weekday() >= 5:  # Saturday / Sunday
+        return False
+    cal = _HOLIDAY_CALS.get(market)
+    if cal is not None and d in cal:
+        return False
+    return True
+
+
+def is_weekend(dt_utc: datetime | None = None) -> bool:
+    """True on Saturday/Sunday UTC (stock sessions closed; crypto still 24/7)."""
+    if dt_utc is None:
+        dt_utc = datetime.now(tz=timezone.utc)
+    return dt_utc.weekday() >= 5
+
+
+def active_important_sessions(dt_utc: datetime | None = None) -> list[Session]:
+    """Important sessions (London/NY) active *and* whose market is open today."""
+    if dt_utc is None:
+        dt_utc = datetime.now(tz=timezone.utc)
+    return [
+        s
+        for s in _IMPORTANT_SESSIONS
+        if s.is_active(dt_utc) and _market_open_on(dt_utc.date(), _SESSION_MARKET[s.name])
+    ]
+
+
+def session_closing_soon(
+    dt_utc: datetime | None = None, minutes: int = 60
+) -> Session | None:
+    """If an active important session closes within `minutes`, return it. Used to
+    advise on both the current and the *next* session when we're at the tail."""
+    if dt_utc is None:
+        dt_utc = datetime.now(tz=timezone.utc)
+    for s in active_important_sessions(dt_utc):
+        close_dt = datetime.combine(dt_utc.date(), s.close_utc, tzinfo=timezone.utc)
+        if timedelta(0) <= (close_dt - dt_utc) <= timedelta(minutes=minutes):
+            return s
+    return None
+
+
+def next_important_session(
+    dt_utc: datetime | None = None, horizon_days: int = 9
+) -> tuple[datetime | None, Session | None]:
+    """Earliest important session that *opens* strictly after `dt_utc`, skipping
+    weekends and exchange holidays. Returns (open_datetime_utc, session)."""
+    if dt_utc is None:
+        dt_utc = datetime.now(tz=timezone.utc)
+    candidates: list[tuple[datetime, Session]] = []
+    for s in _IMPORTANT_SESSIONS:
+        market = _SESSION_MARKET[s.name]
+        for day_offset in range(horizon_days):
+            day = (dt_utc + timedelta(days=day_offset)).date()
+            open_dt = datetime.combine(day, s.open_utc, tzinfo=timezone.utc)
+            if open_dt <= dt_utc or not _market_open_on(day, market):
+                continue
+            candidates.append((open_dt, s))
+            break
+    if not candidates:
+        return None, None
+    candidates.sort(key=lambda x: x[0])
+    return candidates[0]
+
+
+def _humanize_delta(delta: timedelta) -> str:
+    """'en 3h 20m' / 'en 2d 4h' for a future timedelta."""
+    total_min = int(delta.total_seconds() // 60)
+    if total_min < 0:
+        return "ya"
+    days, rem = divmod(total_min, 1440)
+    hours, mins = divmod(rem, 60)
+    if days:
+        return f"en {days}d {hours}h"
+    if hours:
+        return f"en {hours}h {mins}m"
+    return f"en {mins}m"
+
+
+_WEEKDAYS_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+
+
+def get_session_context(dt_utc: datetime | None = None) -> dict:
+    """Dynamic, time-agnostic session context for the any-time mindset.
+
+    Captures: which important sessions are live now (and whether one is closing
+    soon), the next important session and how far off it is, plus the weekend/
+    holiday state of the US/UK exchanges. Crypto is 24/7 — these windows only
+    describe where stock-driven liquidity concentrates."""
+    if dt_utc is None:
+        dt_utc = datetime.now(tz=timezone.utc)
+
+    active = active_important_sessions(dt_utc)
+    closing = session_closing_soon(dt_utc)
+    overlaps = [ov for ov in get_active_overlaps(dt_utc) if ov["name"] == "London + New York"]
+    next_open, next_sess = next_important_session(dt_utc)
+
+    return {
+        "datetime_utc": dt_utc,
+        "weekday": _WEEKDAYS_ES[dt_utc.weekday()],
+        "is_weekend": is_weekend(dt_utc),
+        "us_open": _market_open_on(dt_utc.date(), "US"),
+        "uk_open": _market_open_on(dt_utc.date(), "UK"),
+        "active_important": active,
+        "closing_soon": closing,
+        "overlap_active": bool(overlaps),
+        "next_session": next_sess,
+        "next_session_open": next_open,
+    }
+
+
+def format_session_context_block(dt_utc: datetime | None = None) -> str:
+    """Render `get_session_context` as a prompt block for the mindset mode."""
+    if dt_utc is None:
+        dt_utc = datetime.now(tz=timezone.utc)
+    ctx = get_session_context(dt_utc)
+
+    lines: list[str] = []
+    lines.append(
+        f"Hora UTC: {dt_utc.strftime('%Y-%m-%d %H:%M')} ({ctx['weekday']})"
+    )
+
+    if ctx["is_weekend"]:
+        lines.append(
+            "Fin de semana: las bolsas (LSE/NYSE) están cerradas. "
+            "Crypto opera 24/7 pero sin liquidez institucional de sesión."
+        )
+    else:
+        closed_markets = []
+        if not ctx["us_open"]:
+            closed_markets.append("NYSE (feriado US)")
+        if not ctx["uk_open"]:
+            closed_markets.append("LSE (feriado UK)")
+        if closed_markets:
+            lines.append(f"Feriado de bolsa: {', '.join(closed_markets)} cerrada(s) hoy.")
+
+    active = ctx["active_important"]
+    if active:
+        parts = []
+        for s in active:
+            close_dt = datetime.combine(dt_utc.date(), s.close_utc, tzinfo=timezone.utc)
+            parts.append(f"{s.name} (cierra {s.close_utc.strftime('%H:%M')} UTC, {_humanize_delta(close_dt - dt_utc)})")
+        lines.append("Sesión importante activa: " + ", ".join(parts))
+        if ctx["overlap_active"]:
+            lines.append("Overlap London + New York — MÁXIMA LIQUIDEZ GLOBAL")
+    else:
+        lines.append("Sin sesión importante activa (London/NY cerradas ahora).")
+
+    if ctx["closing_soon"] is not None:
+        s = ctx["closing_soon"]
+        lines.append(
+            f"⚠ {s.name} está cerrando pronto — asesora la sesión actual Y la siguiente."
+        )
+
+    if ctx["next_session"] is not None and ctx["next_session_open"] is not None:
+        nxt = ctx["next_session"]
+        when = ctx["next_session_open"]
+        lines.append(
+            f"Próxima sesión importante: {nxt.name} — abre "
+            f"{when.strftime('%Y-%m-%d %H:%M')} UTC ({_humanize_delta(when - dt_utc)})"
+        )
+
+    lines.append(
+        "Nota: crypto es 24/7; estas ventanas marcan dónde se concentra la "
+        "liquidez de bolsa. Fines de semana y feriados (NYSE/LSE) no hay sesión."
+    )
     return "\n".join(lines)
