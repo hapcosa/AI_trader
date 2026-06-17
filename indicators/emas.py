@@ -8,7 +8,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from indicators.classics import _ema
+from .classics import _ema
 
 
 DEFAULT_PERIODS = (20, 50, 200)
