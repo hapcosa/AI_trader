@@ -116,6 +116,7 @@ def _build_indicator_summaries(dfs: dict, ind_list: list[str], emit: Emit | None
         "abyss": None,
         "tide": None,
         "athenea": None,
+        "emas": None,
     }
 
     if "wavetrend" in ind_list:
@@ -229,6 +230,15 @@ def _build_indicator_summaries(dfs: dict, ind_list: list[str], emit: Emit | None
             _emit(emit, "      BudAI Athenea OK")
         except Exception as e:
             _emit(emit, f"      BudAI Athenea FAIL: {e}")
+
+    if "emas" in ind_list:
+        try:
+            from pineforge_ai.indicators.emas import emas_all_timeframes, emas_summary
+
+            summaries["emas"] = emas_summary(emas_all_timeframes(dfs))
+            _emit(emit, "      EMAs OK")
+        except Exception as e:
+            _emit(emit, f"      EMAs FAIL: {e}")
 
     return summaries
 
@@ -422,6 +432,7 @@ def generate_prompt(
         abyss_summary=summaries["abyss"],
         tide_summary=summaries["tide"],
         athenea_summary=summaries["athenea"],
+        emas_summary=summaries["emas"],
         correlations=correlations,
         volatility=volatility,
         usdt_data=usdt_data,

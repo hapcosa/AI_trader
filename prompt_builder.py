@@ -916,6 +916,28 @@ def _build_budai_athenea(s, timeframes):
     return "\n".join(lines)
 
 
+def _build_emas(emas, timeframes):
+    lines = [_section("EMAs — MOVING AVERAGES (20/50/200)")]
+    lines.append(_row("TF", "Close", "EMA20", "EMA50", "EMA200", "Stack", "Slope20",
+                      widths=[5, 14, 14, 14, 14, 10, 10]))
+    lines.append("-" * 87)
+    for tf in timeframes:
+        d = emas.get(tf)
+        if d is None:
+            continue
+        lines.append(_row(
+            tf.upper(),
+            _fmt_price(d.get("close")),
+            _fmt_price(d.get("ema20")),
+            _fmt_price(d.get("ema50")),
+            _fmt_price(d.get("ema200")),
+            str(d.get("stack", "—")),
+            str(d.get("slope20", "—")),
+            widths=[5, 14, 14, 14, 14, 10, 10],
+        ))
+    return "\n".join(lines)
+
+
 def build_prompt(
     symbol: str,
     dfs: dict[str, pd.DataFrame],
@@ -932,6 +954,7 @@ def build_prompt(
     abyss_summary: dict | None = None,
     tide_summary: dict | None = None,
     athenea_summary: dict | None = None,
+    emas_summary: dict | None = None,
     correlations: dict | None = None,
     volatility: dict | None = None,
     pretrain_summary: list[str] | None = None,
@@ -970,6 +993,7 @@ def build_prompt(
     if abyss_summary:   blocks.append(_build_budai_abyss(abyss_summary, timeframes))
     if tide_summary:    blocks.append(_build_budai_tide(tide_summary, timeframes))
     if athenea_summary: blocks.append(_build_budai_athenea(athenea_summary, timeframes))
+    if emas_summary:    blocks.append(_build_emas(emas_summary, timeframes))
 
     if correlations: blocks.append(_build_correlations(correlations))
     if volatility:   blocks.append(_build_volatility(volatility, timeframes))
