@@ -2519,6 +2519,49 @@ def indicators_summary(
     return JSONResponse(result)
 
 
+@app.get("/api/session-summary")
+def session_summary(
+    symbol: str,
+    start: str,
+    end: str,
+    exchange: str = "bitget",
+    source: str = "auto",
+    tf: str = "15m",
+) -> JSONResponse:
+    """Structured read of the most recent completed occurrence of a daily UTC
+    session window [start,end] for `symbol`: range / % move, trend vs EMAs
+    (20/50), relative volume and SMC structure. The frontend composes the human
+    verdict from these fields (i18n). On-demand for the dashboard Sessions page.
+
+    Query params:
+      symbol   — e.g. BTC/USDT, BTCUSDT (required)
+      start    — window open, "HH:MM" UTC (required)
+      end      — window close, "HH:MM" UTC (required)
+      exchange — ccxt exchange (default: bitget)
+      source   — auto | ccxt | yfinance
+      tf       — intraday timeframe for the read (default 15m)
+    """
+    from pineforge_ai.session_summary import build_session_summary
+
+    try:
+        result = build_session_summary(
+            symbol=symbol,
+            start_hhmm=start,
+            end_hhmm=end,
+            exchange=exchange.strip() or DEFAULT_EXCHANGE,
+            source=source.strip() or "auto",
+            tf=tf.strip() or "15m",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    except Exception as e:  # pragma: no cover - defensive
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    return JSONResponse(result)
+
+
 @app.get("/api/indicators/ticker")
 def indicators_ticker(symbol: str, exchange: str = "bitget") -> JSONResponse:
     """Current price for the /indicators header (fast poll). Last-price lookup
