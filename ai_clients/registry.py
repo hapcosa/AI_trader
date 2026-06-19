@@ -91,6 +91,22 @@ PROVIDERS: dict[str, ProviderSpec] = {
             ModelSpec("deepseek-v4-pro", "DeepSeek V4 Pro - mayor capacidad"),
         ),
     ),
+    # Moonshot / Kimi — OpenAI-compatible endpoint (api.moonshot.ai/v1). Cheap
+    # K2 models, strong reasoning; the natural primary for the system free-tier
+    # pool. Key from platform.moonshot.ai (NOT the consumer Kimi app sub).
+    "moonshot": ProviderSpec(
+        id="moonshot",
+        name="Kimi",
+        env_var="MOONSHOT_API_KEY",
+        key_label="Moonshot (Kimi) API Key",
+        key_placeholder="sk-...",
+        default_model="kimi-k2-0711-preview",
+        models=(
+            ModelSpec("kimi-k2-0711-preview", "Kimi K2 - recomendado"),
+            ModelSpec("kimi-k2-turbo-preview", "Kimi K2 Turbo - rapido"),
+            ModelSpec("moonshot-v1-128k", "Moonshot v1 128k - contexto largo"),
+        ),
+    ),
 }
 
 
@@ -104,6 +120,8 @@ def normalize_provider(provider: str | None) -> str:
         value = "anthropic"
     if value == "chatgpt":
         value = "openai"
+    if value == "kimi":
+        value = "moonshot"
     return value
 
 
