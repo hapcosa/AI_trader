@@ -2815,12 +2815,18 @@ async def send_to_ai_endpoint(request: Request) -> JSONResponse:
                 f"API Key requerida. Ingresa tu {provider_spec.key_label} en el formulario."
             )
 
+        # Optional caller override of the output-token budget. None → the
+        # prompt builder's per-mode default (signal needs a big budget).
+        max_tokens_raw = payload.get("max_tokens")
+        max_tokens = int(max_tokens_raw) if max_tokens_raw not in (None, "") else None
+
         from pineforge_ai.prompt_builder import call_ai_raw
         result = call_ai_raw(
             prompt=prompt,
             api_key=api_key or None,
             provider=provider_spec.id,
             model=model,
+            max_tokens=max_tokens,
             mode=mode,
         )
 

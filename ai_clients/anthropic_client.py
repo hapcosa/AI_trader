@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from pineforge_ai.ai_clients.base import AIResponse, require_api_key
+from pineforge_ai.ai_clients.base import AIResponse, is_truncated_reason, require_api_key
 from pineforge_ai.ai_clients.registry import get_provider_spec
 
 
@@ -52,4 +52,5 @@ def call_raw(
         model=model,
         response=response_text,
         usage=usage_dict,
+        truncated=is_truncated_reason(getattr(resp, "stop_reason", None)),
     ).as_dict()

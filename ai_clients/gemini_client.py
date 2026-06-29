@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from pineforge_ai.ai_clients.base import AIResponse, obj_value, require_api_key
+from pineforge_ai.ai_clients.base import AIResponse, is_truncated_reason, obj_value, require_api_key
 from pineforge_ai.ai_clients.registry import get_provider_spec
 
 
@@ -47,9 +47,13 @@ def call_raw(
         ),
     )
 
+    candidates = getattr(resp, "candidates", None) or []
+    finish_reason = getattr(candidates[0], "finish_reason", None) if candidates else None
+
     return AIResponse(
         provider=spec.id,
         model=model,
         response=(getattr(resp, "text", "") or "").strip(),
         usage=_usage_dict(getattr(resp, "usage_metadata", None)),
+        truncated=is_truncated_reason(finish_reason),
     ).as_dict()

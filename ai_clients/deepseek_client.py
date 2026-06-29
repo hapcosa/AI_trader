@@ -5,7 +5,12 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from pineforge_ai.ai_clients.base import AIResponse, require_api_key, usage_from_openai_style
+from pineforge_ai.ai_clients.base import (
+    AIResponse,
+    is_truncated_reason,
+    require_api_key,
+    usage_from_openai_style,
+)
 from pineforge_ai.ai_clients.registry import get_provider_spec
 
 DEFAULT_BASE_URL = "https://api.deepseek.com"
@@ -41,12 +46,15 @@ def call_raw(
         ],
     )
 
-    message = resp.choices[0].message if getattr(resp, "choices", None) else None
+    choice = resp.choices[0] if getattr(resp, "choices", None) else None
+    message = getattr(choice, "message", None) if choice is not None else None
     response_text = getattr(message, "content", "") if message is not None else ""
+    finish_reason = getattr(choice, "finish_reason", None) if choice is not None else None
 
     return AIResponse(
         provider=spec.id,
         model=model,
         response=(response_text or "").strip(),
         usage=usage_from_openai_style(getattr(resp, "usage", None)),
+        truncated=is_truncated_reason(finish_reason),
     ).as_dict()
