@@ -11,7 +11,12 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from pineforge_ai.ai_clients.base import AIResponse, require_api_key, usage_from_openai_style
+from pineforge_ai.ai_clients.base import (
+    AIResponse,
+    is_truncated_reason,
+    require_api_key,
+    usage_from_openai_style,
+)
 from pineforge_ai.ai_clients.registry import get_provider_spec
 
 # Overridable so a self-hosted / .cn endpoint can be swapped without code change.
@@ -50,9 +55,12 @@ def call_raw(
     if choice is not None and getattr(choice, "message", None) is not None:
         text = (choice.message.content or "").strip()
 
+    finish_reason = getattr(choice, "finish_reason", None) if choice is not None else None
+
     return AIResponse(
         provider=spec.id,
         model=model,
         response=text,
         usage=usage_from_openai_style(getattr(resp, "usage", None)),
+        truncated=is_truncated_reason(finish_reason),
     ).as_dict()

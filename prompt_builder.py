@@ -1050,17 +1050,98 @@ def _strip_code_fence(text: str) -> str:
     return full
 
 
+def salvage_entries(text: str) -> list:
+    """Rescue the complete objects from the `entries` array of a truncated /
+    invalid JSON blob. Free-tier models routinely cut output mid-array (token
+    cap), so a strict ``json.loads`` throws and loses setups that ARE complete
+    (e.g. entry #1). We locate ``"entries"``, then walk its array element by
+    element with a brace-balanced, string/escape-aware scan and ``json.loads``
+    each ``{…}`` that closes; the first object that never closes (the truncated
+    tail) stops the walk.
+
+    Python port of ``salvageEntries`` in the dashboard frontend
+    (OpenTradeModal.tsx) — kept in parity so the standalone AI_trader UI and the
+    walk-forward backtester (train.py) get the same rescue behaviour.
+    """
+    key = text.find('"entries"')
+    if key == -1:
+        return []
+    arr_start = text.find("[", key)
+    if arr_start == -1:
+        return []
+
+    out: list = []
+    n = len(text)
+    i = arr_start + 1
+    while i < n:
+        # Skip whitespace / commas between elements.
+        while i < n and text[i] in " \t\r\n,":
+            i += 1
+        if i >= n or text[i] == "]":
+            break
+        if text[i] != "{":
+            i += 1
+            continue
+        obj_start = i
+        depth = 0
+        in_str = False
+        esc = False
+        closed = False
+        while i < n:
+            ch = text[i]
+            if in_str:
+                if esc:
+                    esc = False
+                elif ch == "\\":
+                    esc = True
+                elif ch == '"':
+                    in_str = False
+                i += 1
+                continue
+            if ch == '"':
+                in_str = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    i += 1
+                    closed = True
+                    break
+            i += 1
+        if not closed:
+            break  # truncated tail — stop salvaging
+        try:
+            out.append(json.loads(text[obj_start:i]))
+        except json.JSONDecodeError:
+            pass  # skip an unparseable element, keep scanning
+    return out
+
+
+# Default output-token budget per mode. `signal` emits a long JSON array of
+# setups (entries[] + key_zones[] + context) so it needs a much larger cap than
+# `mindset` (free-form text) to avoid token-cap truncation. Overridable per call.
+_DEFAULT_MAX_TOKENS = {"signal": 16000, "mindset": 8096}
+
+
 def call_ai_raw(
     prompt: str,
     api_key: str | None = None,
     provider: str = "anthropic",
     model: str | None = None,
-    max_tokens: int = 8096,
+    max_tokens: int | None = None,
     mode: str = "mindset",
     system_prompt: str | None = None,
 ) -> dict:
-    """Call the selected AI provider and return raw text response."""
+    """Call the selected AI provider and return raw text response.
+
+    `max_tokens=None` resolves to a per-mode default (signal needs a big budget
+    for the JSON setups; mindset is shorter).
+    """
     from pineforge_ai.ai_clients.client import call_ai_raw as _call_ai_raw
+
+    if max_tokens is None:
+        max_tokens = _DEFAULT_MAX_TOKENS.get(mode, 8096)
 
     return _call_ai_raw(
         provider=provider,
@@ -1076,14 +1157,17 @@ def send_to_ai(
     api_key: str | None = None,
     model: str | None = None,
     provider: str = "anthropic",
-    max_tokens: int = 4096,
+    max_tokens: int | None = None,
     system_prompt: str | None = None,
     mode: str = "signal",
 ) -> dict:
     """
     Send prompt to the selected AI provider.
 
-    Returns parsed JSON dict from the provider response.
+    Returns parsed JSON dict from the provider response. When the response is
+    truncated (token cap) the strict ``json.loads`` fails; we fall back to
+    ``salvage_entries`` so the complete setups still parse, and flag the result
+    with ``_partial=True``. ``_truncated`` mirrors the provider stop reason.
     """
     raw = call_ai_raw(
         prompt=prompt,
@@ -1095,17 +1179,27 @@ def send_to_ai(
         system_prompt=system_prompt,
     )
     full = _strip_code_fence(str(raw.get("response", "")))
+    truncated = bool(raw.get("truncated"))
 
+    partial = False
     try:
         data = json.loads(full)
     except json.JSONDecodeError as e:
-        raise ValueError(f"AI response not valid JSON: {e}\nRaw: {full[:500]}") from e
+        salvaged = salvage_entries(full)
+        if not salvaged:
+            raise ValueError(
+                f"AI response not valid JSON: {e}\nRaw: {full[:500]}"
+            ) from e
+        data = {"entries": salvaged}
+        partial = True
 
     usage = raw.get("usage") or {}
     if usage:
         data["_usage"] = usage
     data["_provider"] = raw.get("provider", provider)
     data["_model"] = raw.get("model", model)
+    data["_truncated"] = truncated
+    data["_partial"] = partial
     return data
 
 

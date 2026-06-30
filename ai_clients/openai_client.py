@@ -5,8 +5,26 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from pineforge_ai.ai_clients.base import AIResponse, obj_value, require_api_key, usage_from_openai_style
+from pineforge_ai.ai_clients.base import (
+    AIResponse,
+    is_truncated_reason,
+    obj_value,
+    require_api_key,
+    usage_from_openai_style,
+)
 from pineforge_ai.ai_clients.registry import get_provider_spec
+
+
+def _is_truncated(resp: Any) -> bool:
+    """Responses API flags a token-cap cutoff via status='incomplete' +
+    incomplete_details.reason='max_output_tokens'."""
+    if str(getattr(resp, "status", "") or "").lower() != "incomplete":
+        return False
+    reason = obj_value(getattr(resp, "incomplete_details", None), "reason", None)
+    # An incomplete response with no explicit reason is still a cutoff for our
+    # purposes (the body is partial); treat the max_output_tokens reason and a
+    # missing reason both as truncated.
+    return reason is None or is_truncated_reason(reason)
 
 
 def _response_text(resp: Any) -> str:
@@ -53,4 +71,5 @@ def call_raw(
         model=model,
         response=_response_text(resp),
         usage=usage_from_openai_style(getattr(resp, "usage", None)),
+        truncated=_is_truncated(resp),
     ).as_dict()
