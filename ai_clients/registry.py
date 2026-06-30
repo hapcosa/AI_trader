@@ -107,6 +107,24 @@ PROVIDERS: dict[str, ProviderSpec] = {
             ModelSpec("moonshot-v1-128k", "Moonshot v1 128k - contexto largo"),
         ),
     ),
+    # Claude via a Pro/Max SUBSCRIPTION (no per-token API key). The "key" is a
+    # long-lived OAuth token minted once by a human with `claude setup-token`;
+    # the client shells out to the headless `claude -p` CLI authenticated with
+    # CLAUDE_CODE_OAUTH_TOKEN, billed against the subscription's quota. Models
+    # are CLI aliases (opus/sonnet) so they track the account's current default
+    # without pinning a version. Natural fit for the system free-with-quota pool.
+    "claude-code": ProviderSpec(
+        id="claude-code",
+        name="Claude (suscripcion)",
+        env_var="CLAUDE_CODE_OAUTH_TOKEN",
+        key_label="Claude Code OAuth Token",
+        key_placeholder="sk-ant-oat01-...",
+        default_model="sonnet",
+        models=(
+            ModelSpec("sonnet", "Claude Sonnet - recomendado"),
+            ModelSpec("opus", "Claude Opus - analisis profundo"),
+        ),
+    ),
 }
 
 

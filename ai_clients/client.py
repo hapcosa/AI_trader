@@ -29,6 +29,8 @@ def call_ai_raw(
         from pineforge_ai.ai_clients.deepseek_client import call_raw
     elif spec.id == "moonshot":
         from pineforge_ai.ai_clients.moonshot_client import call_raw
+    elif spec.id == "claude-code":
+        from pineforge_ai.ai_clients.claude_code_client import call_raw
     else:
         raise ValueError(f"Unsupported AI provider '{provider}'.")
 
