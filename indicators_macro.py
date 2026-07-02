@@ -14,7 +14,10 @@ from typing import Any
 
 import requests
 
-from pineforge_ai.context.correlations import _fetch_daily, _trend_label
+try:
+    from pineforge_ai.context.correlations import _fetch_daily, _trend_label
+except ModuleNotFoundError:
+    from context.correlations import _fetch_daily, _trend_label
 
 # Macro tickers (yfinance). Labels are display-friendly; keys are stable.
 MARKET_SYMBOLS: dict[str, tuple[str, str]] = {
@@ -28,22 +31,37 @@ MARKET_SYMBOLS: dict[str, tuple[str, str]] = {
     "ETH_BTC":  ("ETH-BTC",  "ETH/BTC"),
 }
 
-FNG_URL = "https://api.alternative.me/fng/?limit=1"
+FNG_URL = "https://api.alternative.me/fng/"
 _HEADERS = {"User-Agent": "PineForge-AI/3.0"}
 
 DOMINANCE_KEYS = ("USDT.D", "BTC.D", "OTHERS.D")
 
 
-def _fetch_fear_greed() -> dict[str, Any] | None:
-    """Crypto Fear & Greed index (0-100) from alternative.me."""
+def _fetch_fear_greed(limit: int = 1) -> dict[str, Any] | list[dict[str, Any]] | None:
+    """Crypto Fear & Greed index (0-100) from alternative.me.
+
+    ``limit=1`` preserves the user-facing Macro tab contract. ``limit=0``
+    returns the full historical list for the TIS warehouse backfill.
+    """
     try:
-        resp = requests.get(FNG_URL, headers=_HEADERS, timeout=10)
+        resp = requests.get(f"{FNG_URL}?limit={limit}", headers=_HEADERS, timeout=10)
         resp.raise_for_status()
-        d = resp.json()["data"][0]
-        return {
-            "value": int(d["value"]),
-            "classification": str(d.get("value_classification") or ""),
-        }
+        rows = [
+            {
+                "value": int(d["value"]),
+                "classification": str(d.get("value_classification") or ""),
+                "timestamp": int(d["timestamp"]) if d.get("timestamp") is not None else None,
+            }
+            for d in resp.json()["data"]
+        ]
+        if limit == 1:
+            if not rows:
+                return None
+            return {
+                "value": rows[0]["value"],
+                "classification": rows[0]["classification"],
+            }
+        return rows
     except Exception:
         return None
 
